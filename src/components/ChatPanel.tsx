@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { describeFunctionError } from '../lib/edgeFunction';
 
 interface Msg { role: 'user' | 'assistant'; content: string }
 
@@ -99,13 +100,7 @@ export default function ChatPanel({ userId }: { userId: string }) {
     setBusy(false);
 
     if (invokeError) {
-      // Erros HTTP vêm da Edge Function no corpo da resposta (context).
-      let detail: string | null = null;
-      try {
-        const res = (invokeError as { context?: Response }).context;
-        if (res && typeof res.json === 'function') detail = (await res.json())?.error ?? null;
-      } catch { /* corpo não era JSON */ }
-      setError(detail ?? invokeError.message ?? 'Não foi possível falar com a IA.');
+      setError(await describeFunctionError(invokeError, 'chat'));
       return;
     }
 

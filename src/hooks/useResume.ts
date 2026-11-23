@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { describeFunctionError } from '../lib/edgeFunction';
 import type { ResumeAnalysis, ResumeAnalysisRow, Settings } from '../types';
 
 export function useResume(userId: string) {
@@ -72,13 +73,7 @@ export function useResume(userId: string) {
     const { data, error: invokeError } = await supabase.functions.invoke('analyze-resume', { body: {} });
 
     if (invokeError) {
-      // Erros HTTP vêm da Edge Function no corpo da resposta (context).
-      let detail: string | null = null;
-      try {
-        const res = (invokeError as { context?: Response }).context;
-        if (res && typeof res.json === 'function') detail = (await res.json())?.error ?? null;
-      } catch { /* corpo não era JSON */ }
-      setError(detail ?? invokeError.message ?? 'Não foi possível analisar o currículo.');
+      setError(await describeFunctionError(invokeError, 'analyze-resume'));
       setAnalyzing(false);
       return;
     }
