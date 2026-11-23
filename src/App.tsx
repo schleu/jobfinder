@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import Auth from './components/Auth';
+import ResetPassword from './components/ResetPassword';
 import JobsTable from './components/JobsTable';
 import SettingsPanel from './components/SettingsPanel';
 import ChatPanel from './components/ChatPanel';
@@ -10,16 +11,28 @@ import ResumePanel from './components/ResumePanel';
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
+  const [recovering, setRecovering] = useState(false);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [tab, setTab] = useState<'vagas' | 'chat' | 'curriculo' | 'config'>('vagas');
 
   useEffect(() => {
+    // Link expirado/inválido volta com o erro no hash (ex.: e-mail de recuperação vencido).
+    const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const errorDescription = params.get('error_description');
+    if (errorDescription) setAuthNotice(errorDescription);
+
+    const { data } = supabase.auth.onAuthStateChange((event, s) => {
+      if (event === 'PASSWORD_RECOVERY') setRecovering(true);
+      if (s) setAuthNotice(null);
+      setSession(s);
+    });
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true); });
-    const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
     return () => data.subscription.unsubscribe();
   }, []);
 
   if (!ready) return null;
-  if (!session) return <main className="center"><Auth /></main>;
+  if (recovering) return <main className="center"><ResetPassword onDone={() => setRecovering(false)} /></main>;
+  if (!session) return <main className="center"><Auth notice={authNotice} /></main>;
   return (
     <main>
       <header>

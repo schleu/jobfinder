@@ -12,6 +12,12 @@ Os scripts ficam em `supabase/migrations`, aplicados em ordem pelo nome:
 - `20261123120000_initial_schema.sql` — tabelas, triggers, RLS e bucket `resumes`.
 - `20261123120100_resume_analyses.sql` — tabela com a análise do currículo.
 
+## Recuperação de senha
+O link **Esqueci minha senha** na tela de login envia um e-mail de redefinição. Ao abrir o link, o app detecta o evento `PASSWORD_RECOVERY` e mostra a tela de definir nova senha (`supabase.auth.updateUser`).
+- No Dashboard, em **Authentication → URL Configuration**, adicione `http://localhost:5173` e a URL de produção em **Redirect URLs** — o app usa `window.location.origin` como destino.
+- O e-mail usa o template **Reset Password** (Authentication → Email Templates). Sem SMTP próprio o Supabase limita bastante o envio; configure SMTP para uso real.
+- O link expira em 1 hora; se expirar, é só pedir outro.
+
 ## Chat com IA (gratuito via OpenRouter)
 A chave da IA fica na Edge Function, nunca no front.
 ```bash
