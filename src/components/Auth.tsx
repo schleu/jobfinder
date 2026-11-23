@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { describeAuthError } from '../lib/authError';
 import PasswordInput from './PasswordInput';
 
 type Mode = 'login' | 'signup' | 'forgot';
@@ -31,7 +32,7 @@ export default function Auth({ notice }: { notice?: string | null }) {
       setOk(!error);
       setMsg(
         error
-          ? error.message
+          ? describeAuthError(error)
           : 'Se este e-mail estiver cadastrado, enviamos um link para redefinir a senha. Confira também a caixa de spam.',
       );
       return;
@@ -43,7 +44,7 @@ export default function Auth({ notice }: { notice?: string | null }) {
 
     setBusy(false);
     setOk(!error);
-    setMsg(error ? error.message : mode === 'signup' ? 'Conta criada. Confirme o e-mail, se exigido.' : null);
+    setMsg(error ? describeAuthError(error) : mode === 'signup' ? 'Conta criada. Confirme o e-mail, se exigido.' : null);
   };
 
   const label = mode === 'forgot' ? 'Enviar link' : mode === 'signup' ? 'Criar conta' : 'Entrar';
