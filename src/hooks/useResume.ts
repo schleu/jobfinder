@@ -3,6 +3,30 @@ import { supabase } from '../lib/supabase';
 import { describeFunctionError } from '../lib/edgeFunction';
 import type { ResumeAnalysis, ResumeAnalysisRow, Settings } from '../types';
 
+const MAX_RESUME_MB = 5;
+
+// Valida o arquivo antes do upload. Retorna a mensagem de erro ou null se estiver ok.
+async function validateResumeFile(file: File): Promise<string | null> {
+  const looksPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+  if (!looksPdf) return 'Formato inválido. Envie o currículo em PDF (.pdf).';
+
+  if (file.size === 0) return 'O arquivo está vazio. Envie um PDF válido.';
+  if (file.size > MAX_RESUME_MB * 1024 * 1024) {
+    return `O PDF deve ter no máximo ${MAX_RESUME_MB} MB.`;
+  }
+
+  // Extensão e MIME podem mentir: confere a assinatura "%PDF-" no início do arquivo.
+  try {
+    const head = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+    const signature = String.fromCharCode(...head);
+    if (signature !== '%PDF-') return 'O arquivo não parece ser um PDF válido.';
+  } catch {
+    return 'Não foi possível ler o arquivo. Tente novamente.';
+  }
+
+  return null;
+}
+
 export function useResume(userId: string) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [analysis, setAnalysis] = useState<ResumeAnalysisRow | null>(null);
@@ -24,6 +48,12 @@ export function useResume(userId: string) {
   useEffect(() => { load(); }, [load]);
 
   const uploadResume = async (file: File): Promise<boolean> => {
+    const invalid = await validateResumeFile(file);
+    if (invalid) {
+      setError(invalid);
+      return false;
+    }
+
     setUploading(true);
     setError(null);
 

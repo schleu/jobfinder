@@ -40,6 +40,8 @@ supabase functions deploy analyze-resume
 ```
 - Usa os mesmos secrets `AI_*` da função `chat` — não precisa configurar nada novo.
 - O texto do PDF é extraído dentro da função com `unpdf`; PDFs escaneados (sem texto selecionável) são recusados com aviso.
+- O texto extraído volta para o app e aparece na análise, com o botão **Mostrar/Ocultar texto**.
+- O upload valida o arquivo antes de enviar: aceita só `.pdf`, até 5 MB, e confere a assinatura `%PDF-` (extensão e MIME podem mentir).
 - A última análise fica salva em `resume_analyses` (uma por usuário). Para aplicar no banco:
   - projeto existente: rode `supabase/migrations/20261123120100_resume_analyses.sql`;
   - projeto novo: rode todos os arquivos de `supabase/migrations` na ordem (ou `supabase db push`).

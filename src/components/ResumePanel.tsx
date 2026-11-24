@@ -151,7 +151,7 @@ export default function ResumePanel({ userId }: { userId: string }) {
         <div className="resume-actions">
           <input
             type="file"
-            accept="application/pdf"
+            accept=".pdf,application/pdf"
             disabled={busy}
             onChange={(e) => {
               onUpload(e.target.files?.[0]);
