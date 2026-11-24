@@ -177,6 +177,48 @@ function buildSystemPrompt(
   ].join('\n');
 }
 
+// A resposta de alguns modelos vem com `content` vazio (texto em partes, no campo
+// `reasoning` ou porque o limite de tokens acabou antes da resposta). Extrai o que der
+// e devolve também o `finish_reason` para explicar a falha.
+function readReply(raw: string): { content: string; finish: string | null } | null {
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const choices = data.choices;
+  if (!Array.isArray(choices) || !choices.length) return null;
+  const choice = (choices[0] ?? {}) as Record<string, unknown>;
+  const message = (choice.message ?? {}) as Record<string, unknown>;
+
+  let content = '';
+  const rawContent = message.content;
+  if (typeof rawContent === 'string') {
+    content = rawContent;
+  } else if (Array.isArray(rawContent)) {
+    content = rawContent
+      .map((part) => {
+        if (typeof part === 'string') return part;
+        const p = (part ?? {}) as Record<string, unknown>;
+        return typeof p.text === 'string' ? p.text : '';
+      })
+      .join('');
+  }
+
+  // Último recurso: alguns provedores só devolvem o raciocínio.
+  if (!content.trim()) {
+    const fallback = message.reasoning_content ?? message.reasoning ?? choice.text;
+    if (typeof fallback === 'string') content = fallback;
+  }
+
+  return {
+    content,
+    finish: typeof choice.finish_reason === 'string' ? choice.finish_reason : null,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'Método não permitido.' }, 405);
@@ -277,43 +319,91 @@ Deno.serve(async (req) => {
   ];
 
   // Alguns modelos gratuitos recusam response_format; nesse caso tentamos de novo sem ele.
-  const callAI = (jsonMode: boolean) =>
+  const callAI = (candidate: string, jsonMode: boolean) =>
     fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers,
       signal: AbortSignal.timeout(60_000),
       body: JSON.stringify({
-        model,
+        model: candidate,
         messages,
         temperature: 0.3,
-        max_tokens: 1_400,
+        max_tokens: 3_000,
         ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
       }),
     });
 
-  let upstream: Response;
-  try {
-    upstream = await callAI(true);
-    if (upstream.status === 400 || upstream.status === 422) {
-      upstream = await callAI(false);
+  // Tenta o modelo padrão e, se AI_MODELS estiver configurado, os próximos da lista.
+  const extraModels = (Deno.env.get('AI_MODELS') ?? '')
+    .split(',')
+    .map((m) => m.trim())
+    .filter(Boolean);
+  const candidates = [...new Set([model, ...extraModels])].slice(0, 3);
+
+  let reply = '';
+  let usedModel = model;
+  let failure = '';
+  let finish: string | null = null;
+
+  for (const candidate of candidates) {
+    try {
+      let res = await callAI(candidate, true);
+      if (res.status === 400 || res.status === 422) res = await callAI(candidate, false);
+
+      if (!res.ok) {
+        failure = `A IA respondeu ${res.status}: ${(await res.text()).slice(0, 300)}`;
+        // 429/5xx podem ser do provedor: vale tentar outro modelo.
+        if (res.status === 429 || res.status >= 500) continue;
+        break;
+      }
+
+      let raw = await res.text();
+      let parsed = readReply(raw);
+
+      // `content` vazio pode ser efeito do response_format ou do modelo sorteado
+      // pelo roteador free; uma segunda tentativa sem o formato costuma resolver.
+      if (!parsed?.content.trim()) {
+        const retry = await callAI(candidate, false);
+        if (retry.ok) {
+          raw = await retry.text();
+          parsed = readReply(raw);
+        }
+      }
+
+      if (!parsed?.content.trim()) {
+        finish = parsed?.finish ?? null;
+        console.error(
+          'analyze-resume: resposta sem texto',
+          JSON.stringify({ model: candidate, finish, raw: raw.slice(0, 800) }),
+        );
+        failure = finish === 'length'
+          ? 'A IA gastou o limite de tokens antes de responder.'
+          : 'A IA não retornou texto.';
+        continue;
+      }
+
+      reply = parsed.content;
+      usedModel = candidate;
+      break;
+    } catch (e) {
+      failure = `Não foi possível falar com a IA: ${(e as Error).message}`;
     }
-  } catch (e) {
-    return json({ error: `Não foi possível falar com a IA: ${(e as Error).message}` }, 502);
   }
 
-  const raw = await upstream.text();
-  if (!upstream.ok) {
-    return json({ error: `A IA respondeu ${upstream.status}: ${raw.slice(0, 300)}` }, 502);
+  if (!reply.trim()) {
+    if (finish === 'length') {
+      return json(
+        { error: 'A IA gastou o limite de tokens antes de produzir a análise. Tente novamente ou troque o modelo em AI_MODEL.' },
+        502,
+      );
+    }
+    return json(
+      {
+        error: `${failure || 'A IA não retornou texto.'} Modelos testados: ${candidates.join(', ')}. Tente novamente ou ajuste AI_MODEL/AI_MODELS.`,
+      },
+      502,
+    );
   }
-
-  let reply: string | undefined;
-  try {
-    reply = JSON.parse(raw)?.choices?.[0]?.message?.content;
-  } catch {
-    return json({ error: 'Resposta inesperada da IA.' }, 502);
-  }
-
-  if (!reply?.trim()) return json({ error: 'A IA não retornou texto. Tente de novo.' }, 502);
 
   let analysis: Analysis;
   try {
@@ -326,5 +416,5 @@ Deno.serve(async (req) => {
     return json({ error: 'A IA não conseguiu resumir o currículo. Tente novamente.' }, 502);
   }
 
-  return json({ analysis, model, resume_path: resumePath, chars: text.length, text });
+  return json({ analysis, model: usedModel, resume_path: resumePath, chars: text.length, text });
 });

@@ -33,8 +33,11 @@ Dentro da função:
 3. Extrai o texto com **`unpdf`** (`extractText`).
 4. Recusa PDFs com menos de **200 caracteres** (provavelmente escaneados) e trunca em **14.000 caracteres**.
 5. Lê as funções procuradas em `job_roles`.
-6. Pede à IA um JSON com `temperature: 0.3`, `max_tokens: 1.400` e `response_format: json_object`. Se o provedor recusar o formato (400/422), tenta de novo sem ele.
-7. Normaliza a resposta (ver abaixo) e devolve `{ analysis, model, resume_path, chars, text }`.
+6. Pede à IA um JSON com `temperature: 0.3`, `max_tokens: 3.000` e `response_format: json_object`. Se o provedor recusar o formato (400/422), tenta de novo sem ele.
+7. Se a resposta vier sem texto, tenta mais uma vez sem `response_format` e, se ainda assim falhar, passa para o próximo modelo de `AI_MODELS` (até 3 no total).
+8. Normaliza a resposta (ver abaixo) e devolve `{ analysis, model, resume_path, chars, text }`.
+
+A leitura da resposta é tolerante: aceita `content` como string ou lista de partes, usa `reasoning`/`reasoning_content` como último recurso e identifica `finish_reason: "length"` para avisar que o limite de tokens acabou.
 
 ## Formato da análise
 
@@ -98,3 +101,13 @@ supabase functions deploy analyze-resume
 - PDFs escaneados (imagem) não têm texto selecionável e são recusados.
 - Análises antigas não têm o texto salvo; basta clicar em **Reanalisar com IA**.
 - A análise ATS mais profunda e a geração de currículo otimizado estão no `TODO.md`.
+
+## Erros comuns
+
+| Mensagem | Causa / solução |
+| --- | --- |
+| “A IA não retornou texto” | modelo devolveu `content` vazio; a função já tenta de novo e troca de modelo — se persistir, troque `AI_MODEL` |
+| “A IA gastou o limite de tokens…” | `finish_reason: length`; tente de novo ou use um modelo com mais saída |
+| “A IA devolveu um formato inesperado” | resposta fora do JSON; reanalise ou troque o modelo |
+| “A IA respondeu 429” | modelo/provedor limitado; configure `AI_MODELS` com alternativas |
+| “AI_API_KEY não configurada…” | falta o secret na Edge Function |
