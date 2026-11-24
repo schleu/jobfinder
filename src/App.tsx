@@ -7,13 +7,14 @@ import JobsTable from './components/JobsTable';
 import SettingsPanel from './components/SettingsPanel';
 import ChatPanel from './components/ChatPanel';
 import ResumePanel from './components/ResumePanel';
+import RoadmapPanel from './components/RoadmapPanel';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
   const [recovering, setRecovering] = useState(false);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
-  const [tab, setTab] = useState<'vagas' | 'chat' | 'curriculo' | 'config'>('vagas');
+  const [tab, setTab] = useState<'vagas' | 'chat' | 'curriculo' | 'futuro' | 'config'>('vagas');
 
   useEffect(() => {
     // Link expirado/inválido volta com o erro no hash (ex.: e-mail de recuperação vencido).
@@ -41,6 +42,7 @@ export default function App() {
           <button className={tab === 'vagas' ? 'tab on' : 'tab'} onClick={() => setTab('vagas')}>Vagas</button>
           <button className={tab === 'chat' ? 'tab on' : 'tab'} onClick={() => setTab('chat')}>Chat IA</button>
           <button className={tab === 'curriculo' ? 'tab on' : 'tab'} onClick={() => setTab('curriculo')}>Currículo</button>
+          <button className={tab === 'futuro' ? 'tab on' : 'tab'} onClick={() => setTab('futuro')}>Futuro</button>
           <button className={tab === 'config' ? 'tab on' : 'tab'} onClick={() => setTab('config')}>Configurações</button>
         </nav>
         <button className="link" onClick={() => supabase.auth.signOut()}>Sair</button>
@@ -48,6 +50,7 @@ export default function App() {
       {tab === 'vagas' && <JobsTable />}
       {tab === 'chat' && <ChatPanel userId={session.user.id} />}
       {tab === 'curriculo' && <ResumePanel userId={session.user.id} />}
+      {tab === 'futuro' && <RoadmapPanel />}
       {tab === 'config' && <SettingsPanel userId={session.user.id} />}
     </main>
   );

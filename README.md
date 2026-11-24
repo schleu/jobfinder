@@ -45,6 +45,9 @@ supabase functions deploy analyze-resume
   - projeto novo: rode todos os arquivos de `supabase/migrations` na ordem (ou `supabase db push`).
 - Para testar local: `supabase functions serve analyze-resume --env-file .env`.
 
+## Aba Futuro
+A aba **Futuro** lê o `TODO.md` da raiz em tempo de build (`?raw`) e mostra as ideias organizadas por seção, com caixas de conclusão e uma barra de progresso. Para adicionar uma feature, basta editar o `TODO.md` — nada de mexer no código. Itens concluídos (`- [x]`) aparecem riscados e entram na contagem.
+
 ## Para as skills do Claude Code
 - Use `SUPABASE_SERVICE_ROLE_KEY` (ignora RLS) e informe `user_id` em cada insert.
 - Preencha `external_id` (id da vaga no site) para evitar duplicatas.
