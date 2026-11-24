@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { STATUSES, type JobStatus } from '../types';
+import { CONTRACT_TYPES, STATUSES, WORK_MODELS, type ContractType, type JobStatus, type WorkModel } from '../types';
 import type { NewJob } from '../hooks/useJobs';
 
 const EMPTY = {
@@ -9,6 +9,8 @@ const EMPTY = {
 export default function JobForm({ onAdd, onClose }: { onAdd: (job: NewJob) => Promise<string | null>; onClose: () => void }) {
   const [fields, setFields] = useState(EMPTY);
   const [status, setStatus] = useState<JobStatus>('nova');
+  const [contract, setContract] = useState<ContractType | ''>('');
+  const [workModel, setWorkModel] = useState<WorkModel | ''>('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -28,6 +30,8 @@ export default function JobForm({ onAdd, onClose }: { onAdd: (job: NewJob) => Pr
       site: fields.site.trim(),
       url: fields.url.trim() || null,
       salary: fields.salary.trim() || null,
+      contract_type: contract || null,
+      work_model: workModel || null,
       status,
       status_note: fields.note.trim() || null,
     });
@@ -36,6 +40,8 @@ export default function JobForm({ onAdd, onClose }: { onAdd: (job: NewJob) => Pr
     if (!err) {
       setFields(EMPTY);
       setStatus('nova');
+      setContract('');
+      setWorkModel('');
       setDone(true);
     }
   };
@@ -58,6 +64,18 @@ export default function JobForm({ onAdd, onClose }: { onAdd: (job: NewJob) => Pr
         </label>
         <label>Salário
           <input value={fields.salary} onChange={set('salary')} placeholder="Ex: R$ 8.000" />
+        </label>
+        <label>Contratação
+          <select value={contract} onChange={(e) => { setContract(e.target.value as ContractType | ''); setDone(false); }}>
+            <option value="">Não informado</option>
+            {CONTRACT_TYPES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+        </label>
+        <label>Modelo de trabalho
+          <select value={workModel} onChange={(e) => { setWorkModel(e.target.value as WorkModel | ''); setDone(false); }}>
+            <option value="">Não informado</option>
+            {WORK_MODELS.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
+          </select>
         </label>
         <label>Status
           <select value={status} onChange={(e) => { setStatus(e.target.value as JobStatus); setDone(false); }}>

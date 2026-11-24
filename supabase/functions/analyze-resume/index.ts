@@ -126,11 +126,20 @@ function parseJson(text: string): unknown {
   return JSON.parse(slice);
 }
 
-function buildSystemPrompt(roles: string[], salary: { min: number | null; max: number | null }) {
+function buildSystemPrompt(
+  roles: string[],
+  salary: { min: number | null; max: number | null },
+  prefs: { contract_type: string | null; work_model: string | null },
+) {
   const salaryLine =
     salary.min != null || salary.max != null
       ? `R$ ${salary.min ?? '?'} a R$ ${salary.max ?? '?'}`
       : 'não informada';
+
+  const CONTRACT_LABEL: Record<string, string> = { clt: 'CLT', pj: 'PJ' };
+  const WORK_LABEL: Record<string, string> = { remoto: 'Remoto', hibrido: 'Híbrido', presencial: 'Presencial' };
+  const contractLine = CONTRACT_LABEL[prefs.contract_type ?? ''] ?? 'sem preferência';
+  const workLine = WORK_LABEL[prefs.work_model ?? ''] ?? 'sem preferência';
 
   return [
     'Você é um recrutador experiente que revisa currículos para o mercado brasileiro.',
@@ -163,6 +172,8 @@ function buildSystemPrompt(roles: string[], salary: { min: number | null; max: n
     'Contexto do usuário:',
     `- Funções procuradas: ${roles.length ? roles.join('; ') : 'nenhuma cadastrada'}`,
     `- Faixa salarial desejada: ${salaryLine}`,
+    `- Preferência de contratação: ${contractLine}`,
+    `- Preferência de modelo de trabalho: ${workLine}`,
   ].join('\n');
 }
 
@@ -185,7 +196,7 @@ Deno.serve(async (req) => {
 
   const { data: settings, error: settingsError } = await supabase
     .from('user_settings')
-    .select('resume_path, salary_min, salary_max')
+    .select('resume_path, salary_min, salary_max, contract_type, work_model')
     .maybeSingle();
 
   if (settingsError) return json({ error: `Falha ao ler as configurações: ${settingsError.message}` }, 500);
@@ -254,6 +265,9 @@ Deno.serve(async (req) => {
       content: buildSystemPrompt(roles, {
         min: settings?.salary_min ?? null,
         max: settings?.salary_max ?? null,
+      }, {
+        contract_type: (settings?.contract_type as string | null) ?? null,
+        work_model: (settings?.work_model as string | null) ?? null,
       }),
     },
     {

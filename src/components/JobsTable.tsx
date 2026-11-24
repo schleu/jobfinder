@@ -1,6 +1,9 @@
 import { Fragment, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { STATUSES, statusLabel, type HistoryRow, type Job, type JobStatus } from '../types';
+import {
+  CONTRACT_TYPES, STATUSES, WORK_MODELS, statusLabel,
+  type ContractType, type HistoryRow, type Job, type JobStatus, type WorkModel,
+} from '../types';
 import { useJobs } from '../hooks/useJobs';
 import JobForm from './JobForm';
 
@@ -26,7 +29,7 @@ function History({ jobId }: { jobId: string }) {
 }
 
 export default function JobsTable() {
-  const { jobs, error, setStatus, addJob } = useJobs();
+  const { jobs, error, setStatus, updateJob, addJob } = useJobs();
   const [filter, setFilter] = useState<JobStatus | 'todas'>('todas');
   const [open, setOpen] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -55,7 +58,7 @@ export default function JobsTable() {
       ) : (
         <div className="scroll">
           <table>
-            <thead><tr><th>Empresa</th><th>Função</th><th>Site</th><th>Salário</th><th>Status</th><th>Atualizada</th></tr></thead>
+            <thead><tr><th>Empresa</th><th>Função</th><th>Site</th><th>Salário</th><th>Contratação</th><th>Modelo</th><th>Status</th><th>Atualizada</th></tr></thead>
             <tbody>
               {shown.map((j) => (
                 <Fragment key={j.id}>
@@ -65,13 +68,33 @@ export default function JobsTable() {
                     <td>{j.url ? <a href={j.url} target="_blank" rel="noreferrer">{j.site}</a> : j.site}</td>
                     <td>{j.salary ?? '-'}</td>
                     <td>
+                      <select
+                        className="mini"
+                        value={j.contract_type ?? ''}
+                        onChange={(e) => updateJob(j.id, { contract_type: (e.target.value || null) as ContractType | null })}
+                      >
+                        <option value="">—</option>
+                        {CONTRACT_TYPES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                      </select>
+                    </td>
+                    <td>
+                      <select
+                        className="mini"
+                        value={j.work_model ?? ''}
+                        onChange={(e) => updateJob(j.id, { work_model: (e.target.value || null) as WorkModel | null })}
+                      >
+                        <option value="">—</option>
+                        {WORK_MODELS.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
+                      </select>
+                    </td>
+                    <td>
                       <select className={`st st-${j.status}`} value={j.status} onChange={(e) => setStatus(j.id, e.target.value as JobStatus)}>
                         {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                       </select>
                     </td>
                     <td className="muted">{fmt(j.status_updated_at)}</td>
                   </tr>
-                  {open === j.id && <tr><td colSpan={6}><History jobId={j.id} /></td></tr>}
+                  {open === j.id && <tr><td colSpan={8}><History jobId={j.id} /></td></tr>}
                 </Fragment>
               ))}
             </tbody>

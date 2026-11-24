@@ -12,6 +12,12 @@ Os scripts ficam em `supabase/migrations`, aplicados em ordem pelo nome:
 - `20261123120000_initial_schema.sql` — tabelas, triggers, RLS e bucket `resumes`.
 - `20261123120100_resume_analyses.sql` — tabela com a análise do currículo.
 - `20261123130000_resume_analysis_text.sql` — texto extraído do PDF junto da análise.
+- `20261124120000_job_contract_work_model.sql` — tipo de contratação e modelo de trabalho (vagas e preferências).
+
+## Vagas
+Cada vaga guarda o **tipo de contratação** (`CLT` ou `PJ`) e o **modelo de trabalho** (`Remoto`, `Híbrido` ou `Presencial`). Os campos são escolhidos no formulário e podem ser ajustados direto na tabela, sem abrir a vaga. Campos não informados aparecem como `—`.
+
+Em **Configurações → Preferências de vaga** você define o que procura; essas preferências entram no contexto do chat e da análise do currículo.
 
 ## Recuperação de senha
 O link **Esqueci minha senha** na tela de login envia um e-mail de redefinição. Ao abrir o link, o app detecta o evento `PASSWORD_RECOVERY` e mostra a tela de definir nova senha (`supabase.auth.updateUser`).
@@ -53,4 +59,5 @@ A aba **Futuro** lê o `TODO.md` da raiz em tempo de build (`?raw`) e mostra as 
 ## Para as skills do Claude Code
 - Use `SUPABASE_SERVICE_ROLE_KEY` (ignora RLS) e informe `user_id` em cada insert.
 - Preencha `external_id` (id da vaga no site) para evitar duplicatas.
+- Opcional: preencha `contract_type` (`clt`/`pj`) e `work_model` (`remoto`/`hibrido`/`presencial`).
 - Ao mudar `status` (e `status_note`), o histórico é gravado sozinho por trigger, com origem `claude_code`.

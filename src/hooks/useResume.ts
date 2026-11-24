@@ -85,7 +85,9 @@ export function useResume(userId: string) {
     // A análise anterior não vale mais para o novo PDF.
     await supabase.from('resume_analyses').delete().eq('user_id', userId);
 
-    setSettings((prev) => ({ salary_min: null, salary_max: null, ...prev, resume_path: path }));
+    setSettings((prev) => ({
+      salary_min: null, salary_max: null, contract_type: null, work_model: null, ...prev, resume_path: path,
+    }));
     setAnalysis(null);
     setUploading(false);
     return true;

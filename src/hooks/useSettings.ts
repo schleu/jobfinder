@@ -3,7 +3,9 @@ import { supabase } from '../lib/supabase';
 import type { JobRole, JobSite, Settings } from '../types';
 
 export function useSettings(userId: string) {
-  const [settings, setSettings] = useState<Settings>({ salary_min: null, salary_max: null, resume_path: null });
+  const [settings, setSettings] = useState<Settings>({
+    salary_min: null, salary_max: null, resume_path: null, contract_type: null, work_model: null,
+  });
   const [roles, setRoles] = useState<JobRole[]>([]);
   const [sites, setSites] = useState<JobSite[]>([]);
   const [error, setError] = useState<string | null>(null);

@@ -25,11 +25,24 @@ interface JobRow {
   site: string;
   url: string | null;
   salary: string | null;
+  contract_type: string | null;
+  work_model: string | null;
   status: string;
   status_note: string | null;
   applied_at: string | null;
   status_updated_at: string;
 }
+
+interface Preferences {
+  contract_type: string | null;
+  work_model: string | null;
+}
+
+const CONTRACT_LABEL: Record<string, string> = { clt: 'CLT', pj: 'PJ' };
+const WORK_LABEL: Record<string, string> = { remoto: 'Remoto', hibrido: 'Híbrido', presencial: 'Presencial' };
+
+const contractText = (v: string | null) => CONTRACT_LABEL[v ?? ''] ?? 'não informado';
+const workText = (v: string | null) => WORK_LABEL[v ?? ''] ?? 'não informado';
 
 const STATUS_LABEL: Record<string, string> = {
   nova: 'Nova',
@@ -68,7 +81,7 @@ const DEFAULT_MODELS = [
 const MAX_ATTEMPTS = 3;
 const ATTEMPT_TIMEOUT_MS = 40_000;
 
-function buildSystemPrompt(jobs: JobRow[]) {
+function buildSystemPrompt(jobs: JobRow[], prefs: Preferences) {
   const today = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   const counts = new Map<string, number>();
   for (const j of jobs) counts.set(j.status, (counts.get(j.status) ?? 0) + 1);
@@ -87,6 +100,8 @@ function buildSystemPrompt(jobs: JobRow[]) {
             `site: ${j.site}`,
             `status: ${STATUS_LABEL[j.status] ?? j.status}`,
             `salário: ${j.salary ?? 'não informado'}`,
+            `contratação: ${contractText(j.contract_type)}`,
+            `modelo: ${workText(j.work_model)}`,
             `atualizada em: ${fmtDate(j.status_updated_at)}`,
           ];
           if (j.applied_at) parts.push(`candidatura em: ${fmtDate(j.applied_at)}`);
@@ -110,6 +125,7 @@ function buildSystemPrompt(jobs: JobRow[]) {
     '- Quando fizer sentido, sugira próximos passos de candidatura, follow-up ou preparação de entrevista.',
     '',
     `Resumo das vagas (${jobs.length} no total): ${summary}`,
+    `Preferências do usuário — contratação: ${contractText(prefs.contract_type)}, modelo de trabalho: ${workText(prefs.work_model)}.`,
     '',
     'Vagas:',
     list,
@@ -179,11 +195,17 @@ Deno.serve(async (req) => {
 
   const { data: jobs, error: jobsError } = await supabase
     .from('jobs')
-    .select('company, role, site, url, salary, status, status_note, applied_at, status_updated_at')
+    .select('company, role, site, url, salary, contract_type, work_model, status, status_note, applied_at, status_updated_at')
     .order('created_at', { ascending: false })
     .limit(100);
 
   if (jobsError) return json({ error: `Falha ao ler as vagas: ${jobsError.message}` }, 500);
+
+  // Preferências são opcionais: se a migração ainda não foi aplicada, o chat segue sem elas.
+  const { data: prefs } = await supabase
+    .from('user_settings')
+    .select('contract_type, work_model')
+    .maybeSingle();
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${apiKey}`,
@@ -194,7 +216,10 @@ Deno.serve(async (req) => {
     headers['X-Title'] = 'jobFinder';
   }
 
-  const systemPrompt = buildSystemPrompt((jobs ?? []) as JobRow[]);
+  const systemPrompt = buildSystemPrompt((jobs ?? []) as JobRow[], {
+    contract_type: (prefs?.contract_type as string | null) ?? null,
+    work_model: (prefs?.work_model as string | null) ?? null,
+  });
   const candidates = [requested, ...allowed.filter((m) => m !== requested)].slice(0, MAX_ATTEMPTS);
 
   let upstream: Response | null = null;
