@@ -52,6 +52,9 @@ td .link { padding:0; text-align:left; } a { color:var(--accent); }
 .chat { display:flex; flex-direction:column; gap:.75rem; }
 .chat-head { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
 .chat-head h2 { margin:0; }
+.chat-tools { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
+.model-pick { display:flex; align-items:center; gap:.4rem; font-size:.85rem; color:var(--muted); }
+.model-pick select { padding:.35rem .5rem; max-width:16rem; }
 .chat-log { display:flex; flex-direction:column; gap:.6rem; min-height:45vh; max-height:62vh; overflow-y:auto; }
 .chat-intro { padding:.5rem 0; }
 .chat-intro .chips { margin:1rem 0 0; }

@@ -10,7 +10,22 @@ const SUGGESTIONS = [
   'Me ajude a priorizar as candidaturas de hoje.',
 ];
 
+// Espelha DEFAULT_MODELS da Edge Function (usada até a lista real chegar).
+const DEFAULT_MODELS = [
+  'openrouter/free',
+  'google/gemma-4-31b-it:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'inclusionai/ling-3.2-flash:free',
+  'nvidia/nemotron-3.5-super-vl:free',
+  'baidu/ernie-5.5-flash-preview:free',
+  'nvidia/nemotron-3.5-lightning:free',
+];
+
 const storageKey = (userId: string) => `jobfinder:chat:${userId}`;
+const modelKey = (userId: string) => `jobfinder:model:${userId}`;
+const modelLabel = (id: string) => id.replace(/:free$/, '') + (id.endsWith(':free') ? ' (free)' : '');
+
+let modelsCache: { models: string[]; default: string } | null = null;
 
 function loadHistory(userId: string): Msg[] {
   try {
@@ -20,6 +35,14 @@ function loadHistory(userId: string): Msg[] {
   } catch {
     return [];
   }
+}
+
+function initialModel(userId: string): string {
+  try {
+    const saved = localStorage.getItem(modelKey(userId));
+    if (saved) return saved;
+  } catch { /* storage indisponível */ }
+  return modelsCache?.default ?? DEFAULT_MODELS[0];
 }
 
 function Inline({ text }: { text: string }) {
@@ -72,17 +95,53 @@ function MessageText({ content }: { content: string }) {
 
 export default function ChatPanel({ userId }: { userId: string }) {
   const [messages, setMessages] = useState<Msg[]>(() => loadHistory(userId));
+  const [models, setModels] = useState<string[]>(modelsCache?.models ?? DEFAULT_MODELS);
+  const [model, setModel] = useState<string>(() => initialModel(userId));
+  const [lastModel, setLastModel] = useState<string | null>(null);
+  const [lastFallback, setLastFallback] = useState(false);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // Lista de modelos permitidos vem da Edge Function (respeita o secret AI_MODELS).
+  useEffect(() => {
+    let alive = true;
+    const apply = (list: string[], def: string) => {
+      if (!alive || !list.length) return;
+      setModels(list);
+      setModel((current) => (list.includes(current) ? current : list.includes(def) ? def : list[0]));
+    };
+
+    if (modelsCache) {
+      apply(modelsCache.models, modelsCache.default);
+    } else {
+      supabase.functions.invoke('chat', { body: { action: 'models' } }).then(({ data, error: invokeError }) => {
+        if (invokeError) return;
+        const list = Array.isArray(data?.models)
+          ? data.models.filter((m: unknown): m is string => typeof m === 'string')
+          : [];
+        const def = typeof data?.default === 'string' ? data.default : '';
+        if (!list.length) return;
+        modelsCache = { models: list, default: def || list[0] };
+        apply(list, def || list[0]);
+      });
+    }
+
+    return () => { alive = false; };
+  }, [userId]);
+
   useEffect(() => {
     try { localStorage.setItem(storageKey(userId), JSON.stringify(messages.slice(-50))); } catch { /* quota cheia */ }
   }, [messages, userId]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, busy]);
+
+  const changeModel = (value: string) => {
+    setModel(value);
+    try { localStorage.setItem(modelKey(userId), value); } catch { /* storage indisponível */ }
+  };
 
   const send = async (text: string) => {
     const content = text.trim();
@@ -94,7 +153,7 @@ export default function ChatPanel({ userId }: { userId: string }) {
     setBusy(true);
 
     const { data, error: invokeError } = await supabase.functions.invoke('chat', {
-      body: { messages: next.slice(-12) },
+      body: { messages: next.slice(-12), model },
     });
 
     setBusy(false);
@@ -109,6 +168,8 @@ export default function ChatPanel({ userId }: { userId: string }) {
       setError(data?.error ?? 'Não foi possível falar com a IA.');
       return;
     }
+    setLastModel(typeof data?.model === 'string' ? data.model : null);
+    setLastFallback(data?.fallback === true);
     setMessages((m) => [...m, { role: 'assistant', content: reply }]);
     inputRef.current?.focus();
   };
@@ -121,6 +182,8 @@ export default function ChatPanel({ userId }: { userId: string }) {
   const clear = () => {
     setMessages([]);
     setError(null);
+    setLastModel(null);
+    setLastFallback(false);
     try { localStorage.removeItem(storageKey(userId)); } catch { /* ignore */ }
   };
 
@@ -128,7 +191,15 @@ export default function ChatPanel({ userId }: { userId: string }) {
     <section className="chat">
       <div className="chat-head">
         <h2>Chat com IA</h2>
-        {messages.length > 0 && <button className="link" onClick={clear}>Limpar conversa</button>}
+        <div className="chat-tools">
+          <label className="model-pick" title="Modelo usado nas respostas">
+            Modelo
+            <select value={model} onChange={(e) => changeModel(e.target.value)} disabled={busy}>
+              {models.map((m) => <option key={m} value={m}>{modelLabel(m)}</option>)}
+            </select>
+          </label>
+          {messages.length > 0 && <button className="link" onClick={clear}>Limpar conversa</button>}
+        </div>
       </div>
 
       <div className="chat-log card">
@@ -173,7 +244,12 @@ export default function ChatPanel({ userId }: { userId: string }) {
           {busy ? 'Enviando…' : 'Enviar'}
         </button>
       </form>
-      <p className="muted chat-hint">Enter envia · Shift+Enter quebra linha · o histórico fica só neste navegador.</p>
+      <p className="muted chat-hint">
+        Enter envia · Shift+Enter quebra linha · o histórico fica só neste navegador.
+        {lastModel && (
+          <> · última resposta: <strong>{lastModel}</strong>{lastFallback ? ' (fallback automático)' : ''}</>
+        )}
+      </p>
     </section>
   );
 }

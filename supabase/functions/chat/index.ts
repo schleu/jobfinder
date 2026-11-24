@@ -52,6 +52,22 @@ const BASE_URLS: Record<string, string> = {
   mistral: 'https://api.mistral.ai/v1',
 };
 
+// Modelos free oferecidos no seletor do chat. O secret AI_MODELS (separado por vírgula)
+// substitui esta lista; o AI_MODEL padrão é sempre permitido.
+const DEFAULT_MODELS = [
+  'openrouter/free',
+  'google/gemma-4-31b-it:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'inclusionai/ling-3.2-flash:free',
+  'nvidia/nemotron-3.5-super-vl:free',
+  'baidu/ernie-5.5-flash-preview:free',
+  'nvidia/nemotron-3.5-lightning:free',
+];
+
+// Troca de modelo automática em caso de 429/5xx (free tier costuma limitar por provedor).
+const MAX_ATTEMPTS = 3;
+const ATTEMPT_TIMEOUT_MS = 40_000;
+
 function buildSystemPrompt(jobs: JobRow[]) {
   const today = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   const counts = new Map<string, number>();
@@ -100,6 +116,15 @@ function buildSystemPrompt(jobs: JobRow[]) {
   ].join('\n');
 }
 
+function allowedModels(defaultModel: string) {
+  const envList = (Deno.env.get('AI_MODELS') ?? '')
+    .split(',')
+    .map((m) => m.trim())
+    .filter(Boolean);
+  const base = envList.length ? envList : DEFAULT_MODELS;
+  return [...new Set([defaultModel, ...base])];
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'Método não permitido.' }, 405);
@@ -116,13 +141,29 @@ Deno.serve(async (req) => {
   const { data: auth, error: authError } = await supabase.auth.getUser();
   if (authError || !auth.user) return json({ error: 'Sessão inválida. Entre novamente.' }, 401);
 
-  let messages: ChatMessage[];
+  let body: Record<string, unknown>;
   try {
-    const body = await req.json();
-    messages = Array.isArray(body?.messages) ? body.messages : [];
+    body = await req.json();
   } catch {
     return json({ error: 'Corpo da requisição inválido.' }, 400);
   }
+
+  const provider = (Deno.env.get('AI_PROVIDER') ?? 'openrouter').toLowerCase();
+  const baseUrl = BASE_URLS[provider];
+  const apiKey = Deno.env.get('AI_API_KEY');
+  const defaultModel = Deno.env.get('AI_MODEL') ?? 'google/gemma-4-31b-it:free';
+
+  if (!baseUrl) return json({ error: `Provedor "${provider}" não suportado. Use: ${Object.keys(BASE_URLS).join(', ')}.` }, 500);
+  if (!apiKey) return json({ error: 'AI_API_KEY não configurada nos secrets da Edge Function.' }, 500);
+
+  const allowed = allowedModels(defaultModel);
+
+  // Lista usada pelo seletor de modelo do front.
+  if (body.action === 'models') {
+    return json({ models: allowed, default: defaultModel });
+  }
+
+  let messages: ChatMessage[] = Array.isArray(body.messages) ? (body.messages as ChatMessage[]) : [];
 
   // Mantém só o histórico recente e limita o tamanho de cada mensagem (economia de tokens).
   messages = messages
@@ -134,6 +175,8 @@ Deno.serve(async (req) => {
     return json({ error: 'Envie ao menos uma mensagem do usuário.' }, 400);
   }
 
+  const requested = typeof body.model === 'string' && allowed.includes(body.model) ? body.model : defaultModel;
+
   const { data: jobs, error: jobsError } = await supabase
     .from('jobs')
     .select('company, role, site, url, salary, status, status_note, applied_at, status_updated_at')
@@ -141,14 +184,6 @@ Deno.serve(async (req) => {
     .limit(100);
 
   if (jobsError) return json({ error: `Falha ao ler as vagas: ${jobsError.message}` }, 500);
-
-  const provider = (Deno.env.get('AI_PROVIDER') ?? 'openrouter').toLowerCase();
-  const baseUrl = BASE_URLS[provider];
-  const apiKey = Deno.env.get('AI_API_KEY');
-  const model = Deno.env.get('AI_MODEL') ?? 'google/gemma-4-31b-it:free';
-
-  if (!baseUrl) return json({ error: `Provedor "${provider}" não suportado. Use: ${Object.keys(BASE_URLS).join(', ')}.` }, 500);
-  if (!apiKey) return json({ error: 'AI_API_KEY não configurada nos secrets da Edge Function.' }, 500);
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${apiKey}`,
@@ -159,27 +194,55 @@ Deno.serve(async (req) => {
     headers['X-Title'] = 'jobFinder';
   }
 
-  let upstream: Response;
-  try {
-    upstream = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers,
-      signal: AbortSignal.timeout(60_000),
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'system', content: buildSystemPrompt((jobs ?? []) as JobRow[]) }, ...messages],
-        temperature: 0.4,
-        max_tokens: 900,
-      }),
-    });
-  } catch (e) {
-    return json({ error: `Não foi possível falar com a IA: ${(e as Error).message}` }, 502);
+  const systemPrompt = buildSystemPrompt((jobs ?? []) as JobRow[]);
+  const candidates = [requested, ...allowed.filter((m) => m !== requested)].slice(0, MAX_ATTEMPTS);
+
+  let upstream: Response | null = null;
+  let usedModel = requested;
+  let failure = '';
+  let lastStatus = 0;
+
+  for (const candidate of candidates) {
+    try {
+      const res = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers,
+        signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
+        body: JSON.stringify({
+          model: candidate,
+          messages: [{ role: 'system', content: systemPrompt }, ...messages],
+          temperature: 0.4,
+          max_tokens: 900,
+        }),
+      });
+
+      if (res.ok) {
+        upstream = res;
+        usedModel = candidate;
+        break;
+      }
+
+      lastStatus = res.status;
+      failure = `A IA respondeu ${res.status}: ${(await res.text()).slice(0, 300)}`;
+      // 429/5xx podem ser do provedor: vale tentar outro modelo. Outros erros não.
+      if (res.status !== 429 && res.status < 500) break;
+    } catch (e) {
+      lastStatus = 0;
+      failure = `Não foi possível falar com a IA: ${(e as Error).message}`;
+    }
+  }
+
+  if (!upstream) {
+    if (lastStatus === 429) {
+      return json(
+        { error: 'Os modelos testados estão temporariamente limitados (429). Tente novamente em alguns minutos ou escolha outro modelo no seletor.' },
+        502,
+      );
+    }
+    return json({ error: failure || 'Nenhum modelo conseguiu responder. Tente novamente.' }, 502);
   }
 
   const raw = await upstream.text();
-  if (!upstream.ok) {
-    return json({ error: `A IA respondeu ${upstream.status}: ${raw.slice(0, 300)}` }, 502);
-  }
 
   let reply: string | undefined;
   try {
@@ -191,5 +254,10 @@ Deno.serve(async (req) => {
 
   if (!reply?.trim()) return json({ error: 'A IA não retornou texto. Tente de novo.' }, 502);
 
-  return json({ reply: reply.trim(), model });
+  return json({
+    reply: reply.trim(),
+    model: usedModel,
+    requested_model: requested,
+    fallback: usedModel !== requested,
+  });
 });

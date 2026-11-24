@@ -27,6 +27,8 @@ supabase secrets set AI_PROVIDER=openrouter AI_API_KEY=sk-or-... AI_MODEL=google
 ```
 - Crie a chave em <https://openrouter.ai/keys> e escolha um modelo `:free` em <https://openrouter.ai/models?max_price=0> (o padrão muda com o tempo; ajuste `AI_MODEL` se necessário).
 - `AI_PROVIDER` aceita qualquer provedor compatível com a API da OpenAI (`openrouter`, `groq`, `openai`, `deepseek`, `mistral`).
+- O chat tem um **seletor de modelo** no topo. A lista vem da função e pode ser trocada pelo secret `AI_MODELS` (IDs separados por vírgula); sem ele vale a lista embutida de modelos `:free`, sempre incluindo o `AI_MODEL` padrão.
+- Se o modelo escolhido devolver **429/5xx**, a função tenta automaticamente os próximos modelos da lista (até 3) e o rodapé do chat mostra qual respondeu.
 - A função autentica pelo JWT do usuário e lê só as vagas dele (RLS), então o bot responde sobre o painel de verdade.
 - Para testar local: `supabase functions serve chat --env-file .env` com as variáveis `AI_*` no `.env`.
 
