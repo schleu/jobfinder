@@ -22,8 +22,9 @@ function List({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-function Result({ row }: { row: { data: ResumeAnalysis; model: string | null; created_at: string } }) {
+function Result({ row }: { row: { data: ResumeAnalysis; model: string | null; text: string | null; created_at: string } }) {
   const a = row.data;
+  const [showText, setShowText] = useState(true);
   const strengths = a.pontos_fortes ?? [];
   const weaknesses = a.pontos_fracos ?? [];
   const keywords = a.palavras_chave ?? [];
@@ -95,6 +96,18 @@ function Result({ row }: { row: { data: ResumeAnalysis; model: string | null; cr
           </p>
         )}
       </div>
+
+      {row.text && (
+        <div className="resume-block">
+          <div className="resume-text-head">
+            <h3>Texto extraído do PDF</h3>
+            <button className="link" onClick={() => setShowText((v) => !v)}>
+              {showText ? 'Ocultar texto' : 'Mostrar texto'}
+            </button>
+          </div>
+          {showText && <pre className="resume-text">{row.text}</pre>}
+        </div>
+      )}
     </div>
   );
 }

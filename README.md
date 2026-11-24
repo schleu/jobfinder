@@ -11,6 +11,7 @@ Painel para acompanhar o status das vagas. O scraping e a candidatura ficam nas 
 Os scripts ficam em `supabase/migrations`, aplicados em ordem pelo nome:
 - `20261123120000_initial_schema.sql` — tabelas, triggers, RLS e bucket `resumes`.
 - `20261123120100_resume_analyses.sql` — tabela com a análise do currículo.
+- `20261123130000_resume_analysis_text.sql` — texto extraído do PDF junto da análise.
 
 ## Recuperação de senha
 O link **Esqueci minha senha** na tela de login envia um e-mail de redefinição. Ao abrir o link, o app detecta o evento `PASSWORD_RECOVERY` e mostra a tela de definir nova senha (`supabase.auth.updateUser`).
@@ -41,7 +42,7 @@ supabase functions deploy analyze-resume
 - O texto do PDF é extraído dentro da função com `unpdf`; PDFs escaneados (sem texto selecionável) são recusados com aviso.
 - A última análise fica salva em `resume_analyses` (uma por usuário). Para aplicar no banco:
   - projeto existente: rode `supabase/migrations/20261123120100_resume_analyses.sql`;
-  - projeto novo: rode os dois arquivos de `supabase/migrations` na ordem (ou `supabase db push`).
+  - projeto novo: rode todos os arquivos de `supabase/migrations` na ordem (ou `supabase db push`).
 - Para testar local: `supabase functions serve analyze-resume --env-file .env`.
 
 ## Para as skills do Claude Code

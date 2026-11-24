@@ -14,7 +14,7 @@ export function useResume(userId: string) {
   const load = useCallback(async () => {
     const [s, a] = await Promise.all([
       supabase.from('user_settings').select('*').maybeSingle(),
-      supabase.from('resume_analyses').select('resume_path, model, data, created_at').maybeSingle(),
+      supabase.from('resume_analyses').select('resume_path, model, data, text, created_at').maybeSingle(),
     ]);
     if (s.data) setSettings(s.data as Settings);
     setAnalysis((a.data as ResumeAnalysisRow | null) ?? null);
@@ -90,6 +90,7 @@ export function useResume(userId: string) {
       resume_path: settings.resume_path,
       model: typeof data?.model === 'string' ? data.model : null,
       data: result,
+      text: typeof data?.text === 'string' ? data.text : null,
     };
 
     const { error: saveError } = await supabase.from('resume_analyses').upsert(row);
@@ -99,6 +100,7 @@ export function useResume(userId: string) {
       resume_path: row.resume_path,
       model: row.model,
       data: result,
+      text: row.text,
       created_at: new Date().toISOString(),
     });
     setAnalyzing(false);

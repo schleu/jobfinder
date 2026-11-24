@@ -312,5 +312,5 @@ Deno.serve(async (req) => {
     return json({ error: 'A IA não conseguiu resumir o currículo. Tente novamente.' }, 502);
   }
 
-  return json({ analysis, model, resume_path: resumePath, chars: text.length });
+  return json({ analysis, model, resume_path: resumePath, chars: text.length, text });
 });

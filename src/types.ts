@@ -35,5 +35,6 @@ export interface ResumeAnalysisRow {
   resume_path: string;
   model: string | null;
   data: ResumeAnalysis;
+  text: string | null;
   created_at: string;
 }
