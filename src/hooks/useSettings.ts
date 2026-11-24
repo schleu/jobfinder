@@ -27,6 +27,7 @@ export function useSettings(userId: string) {
     const { error } = await p;
     setError(error?.message ?? null);
     await load();
+    return !error;
   };
   const saveSettings = (patch: Partial<Settings>) =>
     run(supabase.from('user_settings').upsert({ user_id: userId, ...settings, ...patch }));

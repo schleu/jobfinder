@@ -50,6 +50,9 @@ td .link { padding:0; text-align:left; } a { color:var(--accent); }
 .history li { padding:.2rem 0; white-space:normal; }
 .list li { display:flex; justify-content:space-between; padding:.5rem 0; border-bottom:1px solid var(--line); }
 .muted { color:var(--muted); } .empty { padding:2rem 0; } .error { color:#fca5a5; } .success { color:#86efac; }
+button.primary.ok { background:#86efac; }
+.toast { margin:0; padding:.55rem .8rem; background:rgba(134,239,172,.08); border:1px solid rgba(134,239,172,.35); border-radius:var(--r); animation:toast-in .2s ease-out; }
+@keyframes toast-in { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
 
 /* Chat */
 .chat { display:flex; flex-direction:column; gap:.75rem; }
