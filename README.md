@@ -2,6 +2,9 @@
 
 Painel para acompanhar o status das vagas. O scraping e a candidatura ficam nas skills do Claude Code, que gravam direto no Supabase.
 
+## Documentação
+Cada funcionalidade tem um documento em [`documents/`](./documents/README.md): arquitetura, autenticação, vagas, chat com IA, currículo, configurações, aba Futuro, banco de dados, Edge Functions e desenvolvimento.
+
 ## Rodando
 1. Crie um projeto no Supabase e rode os scripts de `supabase/migrations` no SQL Editor, na ordem (ou `supabase db push`). São idempotentes: podem ser reaplicados sem perder dados.
 2. `cp .env.example .env` e preencha `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`.
