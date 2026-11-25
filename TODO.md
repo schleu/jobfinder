@@ -52,5 +52,6 @@ Backlog de ideias e melhorias do Job Finder. Marque com `[x]` quando concluir e 
 ## Concluídas
 
 - 2026-11-24 — Tipo de contratação (CLT/PJ) e modelo de trabalho (remoto/híbrido/presencial) nas vagas e nas preferências de vaga.
+- 2026-11-25 — Histórico de análises do currículo: cada análise é salva e pode ser aberta ou removida na aba Currículo.
 
 <!-- Mova para cá as tarefas finalizadas, com a data. -->

@@ -12,6 +12,7 @@ Aplicadas em ordem pelo nome:
 | `20261123120100_resume_analyses.sql` | Tabela `resume_analyses` + policy |
 | `20261123130000_resume_analysis_text.sql` | Coluna `text` (PDF extraído) em `resume_analyses` |
 | `20261124120000_job_contract_work_model.sql` | `contract_type` e `work_model` em `jobs` e `user_settings` |
+| `20261124130000_resume_analysis_history.sql` | Histórico de análises: PK `id` em `resume_analyses` + índice por usuário |
 
 Como aplicar:
 
@@ -78,16 +79,19 @@ Restrição: `unique (user_id, site, external_id)` — a mesma vaga não entra d
 | `source` | text | `manual` ou `claude_code` |
 | `created_at` | timestamptz | default `now()` |
 
-### `resume_analyses` (1 linha por usuário)
+### `resume_analyses` (histórico: várias linhas por usuário)
 
 | Coluna | Tipo | Observação |
 | --- | --- | --- |
-| `user_id` | uuid PK | references `auth.users` (cascade) |
+| `id` | uuid PK | `gen_random_uuid()` |
+| `user_id` | uuid | references `auth.users` (cascade) |
 | `resume_path` | text | PDF analisado |
 | `model` | text | modelo que gerou a análise |
 | `data` | jsonb | análise estruturada |
 | `text` | text | texto extraído do PDF |
 | `created_at` | timestamptz | default `now()` |
+
+Índice `resume_analyses_user_created_idx (user_id, created_at desc)` para listar o histórico mais recente primeiro.
 
 ### Enum `job_status`
 

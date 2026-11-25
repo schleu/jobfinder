@@ -56,6 +56,7 @@ export interface ResumeAnalysis {
   nota_geral: number;
 }
 export interface ResumeAnalysisRow {
+  id: string;
   resume_path: string;
   model: string | null;
   data: ResumeAnalysis;

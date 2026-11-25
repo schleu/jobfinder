@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useResume } from '../hooks/useResume';
 import type { ResumeAnalysis } from '../types';
 
@@ -115,7 +115,11 @@ function Result({ row }: { row: { data: ResumeAnalysis; model: string | null; te
 export default function ResumePanel({ userId }: { userId: string }) {
   const r = useResume(userId);
   const [notice, setNotice] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const busy = r.uploading || r.analyzing;
+
+  // A análise selecionada pode ser uma antiga; sem seleção, mostra a mais recente.
+  const selected = (selectedId && r.history.find((row) => row.id === selectedId)) || r.analysis;
 
   const onUpload = async (file: File | undefined) => {
     if (!file) return;
@@ -126,7 +130,17 @@ export default function ResumePanel({ userId }: { userId: string }) {
 
   const onAnalyze = async () => {
     setNotice(null);
+    setSelectedId(null);
     await r.analyzeResume();
+  };
+
+  const onRemove = async (id: string) => {
+    if (!window.confirm('Remover esta análise do histórico?')) return;
+    setNotice(null);
+    const ok = await r.removeAnalysis(id);
+    if (!ok) return;
+    if (selectedId === id) setSelectedId(null);
+    setNotice('Análise removida do histórico.');
   };
 
   return (
@@ -166,8 +180,61 @@ export default function ResumePanel({ userId }: { userId: string }) {
         {r.error && <p className="error">{r.error}</p>}
       </div>
 
-      {r.analysis ? (
-        <Result row={r.analysis} />
+      {r.history.length > 0 && (
+        <div className="card">
+          <div className="resume-head">
+            <div>
+              <h2>Histórico de análises</h2>
+              <p className="muted">
+                {r.history.length === 1 ? '1 análise salva.' : `${r.history.length} análises salvas.`} Clique em
+                uma para ver o resultado.
+              </p>
+            </div>
+          </div>
+
+          <ul className="resume-history">
+            {r.history.map((row) => {
+              const score = Math.max(0, Math.min(100, Math.round(row.data.nota_geral ?? 0)));
+              const active = selected?.id === row.id;
+              return (
+                <li key={row.id} className={active ? 'on' : undefined}>
+                  <button
+                    type="button"
+                    className="resume-history-main"
+                    onClick={() => setSelectedId(row.id)}
+                    aria-current={active ? 'true' : undefined}
+                  >
+                    <span
+                      className="resume-history-score"
+                      style={{ color: scoreColor(score), borderColor: scoreColor(score) }}
+                    >
+                      {score}
+                    </span>
+                    <span className="resume-history-info">
+                      <strong>{fmtDate(row.created_at)}</strong>
+                      <small className="muted">
+                        {row.data.nivel}
+                        {row.model ? ` · ${row.model}` : ''}
+                      </small>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="link"
+                    onClick={() => onRemove(row.id)}
+                    aria-label={`Remover análise de ${fmtDate(row.created_at)}`}
+                  >
+                    Remover
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {selected ? (
+        <Result key={selected.id || selected.created_at} row={selected} />
       ) : (
         !r.loading && r.settings?.resume_path && (
           <div className="card empty muted">

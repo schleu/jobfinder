@@ -16,6 +16,7 @@ Os scripts ficam em `supabase/migrations`, aplicados em ordem pelo nome:
 - `20261123120100_resume_analyses.sql` — tabela com a análise do currículo.
 - `20261123130000_resume_analysis_text.sql` — texto extraído do PDF junto da análise.
 - `20261124120000_job_contract_work_model.sql` — tipo de contratação e modelo de trabalho (vagas e preferências).
+- `20261124130000_resume_analysis_history.sql` — histórico de análises do currículo (várias por usuário).
 
 ## Vagas
 Cada vaga guarda o **tipo de contratação** (`CLT` ou `PJ`) e o **modelo de trabalho** (`Remoto`, `Híbrido` ou `Presencial`). Os campos são escolhidos no formulário e podem ser ajustados direto na tabela, sem abrir a vaga. Campos não informados aparecem como `—`.
@@ -51,8 +52,8 @@ supabase functions deploy analyze-resume
 - O texto do PDF é extraído dentro da função com `unpdf`; PDFs escaneados (sem texto selecionável) são recusados com aviso.
 - O texto extraído volta para o app e aparece na análise, com o botão **Mostrar/Ocultar texto**.
 - O upload valida o arquivo antes de enviar: aceita só `.pdf`, até 5 MB, e confere a assinatura `%PDF-` (extensão e MIME podem mentir).
-- A última análise fica salva em `resume_analyses` (uma por usuário). Para aplicar no banco:
-  - projeto existente: rode `supabase/migrations/20261123120100_resume_analyses.sql`;
+- Cada análise fica salva em `resume_analyses`; a aba **Currículo** lista o histórico, permite abrir uma análise antiga e remover. Para aplicar no banco:
+  - projeto existente: rode `supabase/migrations/20261124130000_resume_analysis_history.sql` (as anteriores, se ainda não rodou);
   - projeto novo: rode todos os arquivos de `supabase/migrations` na ordem (ou `supabase db push`).
 - Para testar local: `supabase functions serve analyze-resume --env-file .env`.
 

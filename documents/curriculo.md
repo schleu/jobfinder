@@ -19,7 +19,7 @@ A aba **Currículo** envia um PDF para o Storage, extrai o texto dentro da Edge 
   - arquivo vazio;
   - arquivo acima de **5 MB**;
   - conteúdo sem a assinatura `%PDF-` (pega arquivo renomeado).
-- Depois do upload, a análise anterior é apagada (não vale mais para o novo PDF) e o caminho é salvo em `user_settings.resume_path`.
+- Depois do upload, o caminho é salvo em `user_settings.resume_path`; as análises anteriores continuam no histórico.
 - O upload preserva a faixa salarial e as preferências já salvas.
 
 ## Análise
@@ -64,17 +64,29 @@ Regras de normalização (modelos gratuitos às vezes fogem do formato):
 
 ## Persistência
 
-Tabela `resume_analyses` (uma linha por usuário, `user_id` é a PK):
+Tabela `resume_analyses` (**várias linhas por usuário**, uma por análise; `id` é a PK e `user_id` a FK):
 
 | Coluna | Conteúdo |
 | --- | --- |
+| `id` | PK da análise |
+| `user_id` | dono (RLS) |
 | `resume_path` | caminho do PDF analisado |
 | `model` | modelo que gerou a análise |
 | `data` | JSON da análise |
 | `text` | texto extraído do PDF |
 | `created_at` | data da análise |
 
-A gravação é feita pelo front (`upsert`), depois de receber a resposta.
+A gravação é feita pelo front (`insert`), depois de receber a resposta. O índice `resume_analyses_user_created_idx` acelera a listagem por usuário, mais recente primeiro.
+
+## Histórico
+
+A aba mostra um card **Histórico de análises** quando existe pelo menos uma análise salva:
+
+- cada linha traz a nota, a data/hora, o nível e o modelo usado;
+- clicar na linha abre aquela análise no lugar da mais recente (o item ativo fica destacado);
+- **Remover** apaga a análise (com confirmação) e volta para a mais recente;
+- **Reanalisar com IA** sempre cria uma nova linha no topo do histórico, sem apagar as anteriores;
+- se a gravação falhar, o resultado ainda aparece na tela e o erro explica que não foi salvo.
 
 ## Exibição
 
@@ -93,13 +105,13 @@ supabase functions deploy analyze-resume
 ```
 
 - Usa os mesmos secrets `AI_*` do chat.
-- Migrações necessárias: `20261123120100_resume_analyses.sql` e `20261123130000_resume_analysis_text.sql`.
+- Migrações necessárias: `20261123120100_resume_analyses.sql`, `20261123130000_resume_analysis_text.sql` e `20261124130000_resume_analysis_history.sql`.
 - Teste local: `supabase functions serve analyze-resume --env-file .env` (Docker).
 
 ## Limitações conhecidas
 
 - PDFs escaneados (imagem) não têm texto selecionável e são recusados.
-- Análises antigas não têm o texto salvo; basta clicar em **Reanalisar com IA**.
+- Análises feitas antes da coluna `text` aparecem sem o bloco de texto; basta reanalisar para gerar uma nova.
 - A análise ATS mais profunda e a geração de currículo otimizado estão no `TODO.md`.
 
 ## Erros comuns

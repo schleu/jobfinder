@@ -29,6 +29,7 @@ async function validateResumeFile(file: File): Promise<string | null> {
 
 export function useResume(userId: string) {
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [history, setHistory] = useState<ResumeAnalysisRow[]>([]);
   const [analysis, setAnalysis] = useState<ResumeAnalysisRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -38,10 +39,15 @@ export function useResume(userId: string) {
   const load = useCallback(async () => {
     const [s, a] = await Promise.all([
       supabase.from('user_settings').select('*').maybeSingle(),
-      supabase.from('resume_analyses').select('resume_path, model, data, text, created_at').maybeSingle(),
+      supabase
+        .from('resume_analyses')
+        .select('id, resume_path, model, data, text, created_at')
+        .order('created_at', { ascending: false }),
     ]);
     if (s.data) setSettings(s.data as Settings);
-    setAnalysis((a.data as ResumeAnalysisRow | null) ?? null);
+    const rows = (a.data ?? []) as ResumeAnalysisRow[];
+    setHistory(rows);
+    setAnalysis(rows[0] ?? null);
     setError(s.error?.message ?? a.error?.message ?? null);
     setLoading(false);
   }, []);
@@ -82,13 +88,10 @@ export function useResume(userId: string) {
       return false;
     }
 
-    // A análise anterior não vale mais para o novo PDF.
-    await supabase.from('resume_analyses').delete().eq('user_id', userId);
-
+    // O histórico é preservado: análises antigas continuam disponíveis na lista.
     setSettings((prev) => ({
       salary_min: null, salary_max: null, contract_type: null, work_model: null, ...prev, resume_path: path,
     }));
-    setAnalysis(null);
     setUploading(false);
     return true;
   };
@@ -125,21 +128,40 @@ export function useResume(userId: string) {
       text: typeof data?.text === 'string' ? data.text : null,
     };
 
-    const { error: saveError } = await supabase.from('resume_analyses').upsert(row);
-    if (saveError) setError(`Análise gerada, mas não foi salva: ${saveError.message}`);
+    const { error: saveError } = await supabase.from('resume_analyses').insert(row);
 
-    setAnalysis({
-      resume_path: row.resume_path,
-      model: row.model,
-      data: result,
-      text: row.text,
-      created_at: new Date().toISOString(),
-    });
+    if (saveError) {
+      setError(`Análise gerada, mas não foi salva: ${saveError.message}`);
+      // Mostra o resultado mesmo sem ter salvo no histórico.
+      setAnalysis({
+        id: '',
+        resume_path: row.resume_path,
+        model: row.model,
+        data: result,
+        text: row.text,
+        created_at: new Date().toISOString(),
+      });
+    } else {
+      // Recarrega para trazer a análise nova no topo do histórico.
+      await load();
+    }
+
     setAnalyzing(false);
+  };
+
+  const removeAnalysis = async (id: string) => {
+    const { error: deleteError } = await supabase.from('resume_analyses').delete().eq('id', id);
+    if (deleteError) {
+      setError(deleteError.message);
+      return false;
+    }
+    await load();
+    return true;
   };
 
   return {
     settings,
+    history,
     analysis,
     loading,
     uploading,
@@ -147,6 +169,7 @@ export function useResume(userId: string) {
     error,
     uploadResume,
     analyzeResume,
+    removeAnalysis,
     reload: load,
   };
 }
