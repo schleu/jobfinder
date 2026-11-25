@@ -11,7 +11,7 @@ Um arquivo por funcionalidade do app, para consultar como cada parte funciona, o
 | [arquitetura.md](./arquitetura.md) | Stack, estrutura de pastas, fluxo de dados e variáveis de ambiente |
 | [autenticacao.md](./autenticacao.md) | Login, cadastro, recuperação de senha e mensagens de erro |
 | [vagas.md](./vagas.md) | Tabela de vagas, formulário, status, histórico, contratação e modelo |
-| [chat-ia.md](./chat-ia.md) | Chat com IA, seletor de modelo, fallback e Edge Function `chat` |
+| [chat-ia.md](./chat-ia.md) | Chat com IA, seletor de modelo, fallback, adicionar vaga pelo chat e Edge Function `chat` |
 | [curriculo.md](./curriculo.md) | Upload do PDF, análise com IA, texto extraído e Edge Function `analyze-resume` |
 | [configuracoes.md](./configuracoes.md) | Faixa salarial, preferências, funções procuradas, sites e feedback de salvamento |
 | [futuro.md](./futuro.md) | Aba Futuro e o formato do `TODO.md` |

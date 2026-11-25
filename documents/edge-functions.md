@@ -6,7 +6,7 @@ Duas funções Deno rodam no Supabase: **`chat`** e **`analyze-resume`**. As dua
 
 | Função | Entrada | Saída | Documento |
 | --- | --- | --- | --- |
-| `chat` | mensagens + modelo escolhido | resposta da IA | [chat-ia.md](./chat-ia.md) |
+| `chat` | mensagens + modelo escolhido | resposta da IA e, quando pedido, rascunho de vaga | [chat-ia.md](./chat-ia.md) |
 | `analyze-resume` | corpo vazio | análise do currículo + texto extraído | [curriculo.md](./curriculo.md) |
 
 Ambas:

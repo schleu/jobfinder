@@ -45,6 +45,10 @@ Ao abrir uma vaga, `History` busca `job_status_history` por `job_id`, mais recen
 
 Depois de adicionar, o formulário limpa os campos e mostra “Vaga adicionada.”.
 
+### Adicionar pelo chat
+
+Na aba **Chat IA**, peça para adicionar uma vaga colando o link ou descrevendo os dados (empresa, função, salário…). A IA devolve um rascunho e o app mostra o cartão **Adicionar vaga a partir do chat**, com os campos preenchidos e editáveis. Ao confirmar, a vaga entra em `jobs` e o site é adicionado automaticamente em `job_sites` quando ainda não existe. O fluxo completo está em [chat-ia.md](./chat-ia.md#adicionar-vaga-pelo-chat).
+
 ## Status
 
 | Valor | Label |

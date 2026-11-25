@@ -35,6 +35,12 @@ export interface Job {
   contract_type: ContractType | null; work_model: WorkModel | null;
   status: JobStatus; status_note: string | null; applied_at: string | null; status_updated_at: string; created_at: string;
 }
+// Rascunho devolvido pela Edge Function `chat` quando o usuário pede para adicionar uma vaga.
+export interface JobDraft {
+  company: string; role: string; site: string; url: string | null; salary: string | null;
+  contract_type: ContractType | null; work_model: WorkModel | null;
+  status: JobStatus; status_note: string | null;
+}
 export interface HistoryRow { id: string; status: JobStatus; note: string | null; source: string; created_at: string }
 export interface Settings {
   salary_min: number | null; salary_max: number | null; resume_path: string | null;

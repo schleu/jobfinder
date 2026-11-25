@@ -40,7 +40,8 @@ src/
     ResetPassword.tsx     definição de nova senha (PASSWORD_RECOVERY)
     JobsTable.tsx         tabela de vagas, filtros e histórico
     JobForm.tsx           formulário de nova vaga
-    ChatPanel.tsx         chat com IA, seletor de modelo e histórico local
+    JobDraftCard.tsx      confirmação da vaga extraída pelo chat
+    ChatPanel.tsx         chat com IA, seletor de modelo, histórico local e cadastro de vaga
     ResumePanel.tsx       upload e resultado da análise do currículo
     RoadmapPanel.tsx      aba Futuro (lê o TODO.md)
     SettingsPanel.tsx     faixa salarial, preferências, funções e sites
@@ -52,6 +53,7 @@ src/
     supabase.ts           cliente Supabase (anon key)
     edgeFunction.ts       tradução de erros de Edge Functions
     authError.ts          tradução de erros de autenticação
+    jobSites.ts           cadastro automático do site da vaga
 supabase/
   migrations/             scripts SQL idempotentes, aplicados em ordem
   functions/

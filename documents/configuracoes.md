@@ -33,6 +33,7 @@ A aba **Configurações** reúne o que a IA usa como contexto e o que alimenta a
 - Lista em `job_sites` (`name`, `url`, `active`).
 - **Pausar/Ativar** alterna `active`; **Remover** apaga.
 - O site pausado aparece esmaecido e pode ser usado pelas skills para decidir onde buscar.
+- Ao adicionar uma vaga pelo chat, o site é criado automaticamente aqui quando ainda não existe (`src/lib/jobSites.ts`).
 
 ## Feedback visual
 

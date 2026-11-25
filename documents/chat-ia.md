@@ -6,8 +6,10 @@ O chat responde perguntas sobre as vagas do usuário. A chamada ao provedor de I
 
 | Arquivo | Papel |
 | --- | --- |
-| `src/components/ChatPanel.tsx` | Interface, seletor de modelo, histórico local e renderização das respostas |
-| `supabase/functions/chat/index.ts` | Autenticação, contexto das vagas, chamada à IA e fallback de modelos |
+| `src/components/ChatPanel.tsx` | Interface, seletor de modelo, histórico local, renderização das respostas e fluxo de adicionar vaga |
+| `src/components/JobDraftCard.tsx` | Cartão editável de confirmação da vaga extraída pela IA |
+| `src/lib/jobSites.ts` | Adiciona o site da vaga em Configurações quando ele ainda não existe |
+| `supabase/functions/chat/index.ts` | Autenticação, contexto das vagas, extração de vaga, chamada à IA e fallback de modelos |
 | `src/lib/edgeFunction.ts` | Traduz erros de `functions.invoke` |
 
 ## Interface
@@ -16,9 +18,53 @@ O chat responde perguntas sobre as vagas do usuário. A chamada ao provedor de I
 - A escolha fica salva em `localStorage` por usuário (`jobfinder:model:<userId>`).
 - **Histórico** também fica no navegador (`jobfinder:chat:<userId>`), limitado às 50 mensagens mais recentes; **Limpar conversa** apaga.
 - Sugestões iniciais clicáveis quando a conversa está vazia.
+- **+ Nova vaga** (ou **+ Adicionar vaga**) preenche o campo com `Adicionar vaga: ` para você colar o link ou descrever os dados.
 - Markdown mínimo: parágrafos, títulos, bullets, **negrito** e `código`.
 - Rodapé mostra qual modelo respondeu e avisa quando houve **fallback automático**.
 - `Enter` envia, `Shift+Enter` quebra linha.
+
+## Adicionar vaga pelo chat
+
+Quando a última mensagem do usuário pede para cadastrar uma vaga (ou contém um link), a Edge Function muda o modo: em vez de responder sobre as vagas, ela **extrai um rascunho** e devolve junto com a resposta.
+
+1. O front envia a conversa normalmente.
+2. A função detecta a intenção (`adicionar`, `cadastrar`, `salvar`… + `vaga`, ou um link praticamente sozinho / acompanhado de “vaga”).
+3. Se houver link, a função tenta abri-lo (timeout de 15 s, até 4 redirecionamentos, hosts internos bloqueados) e aproveita o **JSON-LD `JobPosting`** da página quando existir.
+4. A IA recebe a mensagem, o link e o texto extraído da página e responde só com um JSON de vaga.
+5. O front valida o JSON e mostra o **cartão de confirmação** (`JobDraftCard`), com todos os campos editáveis.
+6. Ao confirmar, a vaga é inserida em `jobs` e o site é adicionado em `job_sites` se ainda não existir (com URL do link ou de uma lista de sites conhecidos).
+
+O cartão nunca salva sozinho: o usuário revisa empresa, função, site, link, salário, contratação, modelo, status e observação antes de confirmar. Duplicatas (mesmo link ou mesma empresa + função + site) são recusadas com “Essa vaga já está cadastrada.”.
+
+### Resposta com rascunho
+
+```json
+{
+  "reply": "Encontrei esta vaga. Revise os campos abaixo e confirme para adicionar.",
+  "job": {
+    "company": "Acme",
+    "role": "Desenvolvedor Frontend",
+    "site": "LinkedIn",
+    "url": "https://www.linkedin.com/jobs/view/123",
+    "salary": "R$ 8.000",
+    "contract_type": "clt",
+    "work_model": "remoto",
+    "status": "nova",
+    "status_note": "React, TypeScript"
+  },
+  "model": "modelo usado",
+  "requested_model": "modelo pedido",
+  "fallback": false
+}
+```
+
+Se a IA falhar mas o link tiver dados estruturados, a função ainda devolve um rascunho parcial para o usuário completar. Se não houver nada aproveitável, devolve o erro normal (429, 502 etc.).
+
+### Limitações
+
+- Sites com login ou anti-bot (LinkedIn, alguns portais) podem bloquear a leitura da página; nesse caso a IA usa o link e o texto da mensagem, e o cartão serve para completar o que faltar.
+- A IA pode errar ou inventar um campo; por isso o cartão é sempre uma etapa de revisão e nada é salvo sem confirmação.
+- O link é aberto pela Edge Function, não pelo navegador; hosts internos (`localhost`, faixas privadas) são bloqueados.
 
 ## Contrato da Edge Function `chat`
 

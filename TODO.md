@@ -4,9 +4,9 @@ Backlog de ideias e melhorias do Job Finder. Marque com `[x]` quando concluir e 
 
 ## Vagas
 - [ ] **Tabela principal** — (_detalhar escopo_)
-- [ ] **Adicionar vaga via chat**
-  - [ ] A partir do link da vaga
-  - [ ] Adicionar automaticamente o site à lista de sites de busca
+- [x] **Adicionar vaga via chat**
+  - [x] A partir do link da vaga
+  - [x] Adicionar automaticamente o site à lista de sites de busca
 
 ## IA / LLMs
 - [ ] **Adicionar DeepSeek e Mistral como opção de LLM** no seletor do chat
@@ -53,5 +53,6 @@ Backlog de ideias e melhorias do Job Finder. Marque com `[x]` quando concluir e 
 
 - 2026-11-24 — Tipo de contratação (CLT/PJ) e modelo de trabalho (remoto/híbrido/presencial) nas vagas e nas preferências de vaga.
 - 2026-11-25 — Histórico de análises do currículo: cada análise é salva e pode ser aberta ou removida na aba Currículo.
+- 2026-11-25 — Adicionar vaga pelo chat: extração a partir de texto ou link, cartão de confirmação editável e cadastro automático do site.
 
 <!-- Mova para cá as tarefas finalizadas, com a data. -->
