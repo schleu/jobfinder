@@ -4,8 +4,9 @@ import {
   type ContractType, type JobDraft, type JobStatus, type WorkModel,
 } from '../types';
 import type { NewJob } from '../hooks/useJobs';
+import { SALARY_SUGGESTIONS, normalizeSalary } from '../lib/salary';
 
-const EMPTY_FIELDS = { company: '', role: '', site: '', url: '', salary: '', note: '' };
+const EMPTY_FIELDS = { company: '', role: '', site: '', url: '', salary: '', description: '', note: '' };
 
 export default function JobDraftCard({
   draft,
@@ -22,6 +23,7 @@ export default function JobDraftCard({
     site: draft.site,
     url: draft.url ?? '',
     salary: draft.salary ?? '',
+    description: draft.description ?? '',
     note: draft.status_note ?? '',
   }));
   const [status, setStatus] = useState<JobStatus>(draft.status);
@@ -37,6 +39,7 @@ export default function JobDraftCard({
       site: draft.site,
       url: draft.url ?? '',
       salary: draft.salary ?? '',
+      description: draft.description ?? '',
       note: draft.status_note ?? '',
     });
     setStatus(draft.status);
@@ -45,7 +48,7 @@ export default function JobDraftCard({
     setError(null);
   }, [draft]);
 
-  const set = (key: keyof typeof EMPTY_FIELDS) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const set = (key: keyof typeof EMPTY_FIELDS) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFields((f) => ({ ...f, [key]: e.target.value }));
     setError(null);
   };
@@ -67,7 +70,8 @@ export default function JobDraftCard({
       role,
       site,
       url: fields.url.trim() || null,
-      salary: fields.salary.trim() || null,
+      salary: normalizeSalary(fields.salary),
+      description: fields.description.trim() || null,
       contract_type: contract || null,
       work_model: workModel || null,
       status,
@@ -98,7 +102,10 @@ export default function JobDraftCard({
           <input type="url" value={fields.url} onChange={set('url')} placeholder="https://..." />
         </label>
         <label>Salário
-          <input value={fields.salary} onChange={set('salary')} placeholder="Ex: R$ 8.000" />
+          <input list="salary-suggestions" value={fields.salary} onChange={set('salary')} placeholder="Ex: R$ 8.000" />
+          <datalist id="salary-suggestions">
+            {SALARY_SUGGESTIONS.map((s) => <option key={s} value={s} />)}
+          </datalist>
         </label>
         <label>Contratação
           <select value={contract} onChange={(e) => { setContract(e.target.value as ContractType | ''); setError(null); }}>
@@ -119,6 +126,9 @@ export default function JobDraftCard({
         </label>
       </div>
 
+      <label>Descrição da vaga
+        <textarea rows={4} value={fields.description} onChange={set('description')} placeholder="Opcional — responsabilidades, requisitos, benefícios…" />
+      </label>
       <label>Observação
         <input value={fields.note} onChange={set('note')} placeholder="Opcional — fica no histórico da vaga" />
       </label>

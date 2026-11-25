@@ -32,12 +32,14 @@ export const workModelLabel = (w: WorkModel | null) =>
 
 export interface Job {
   id: string; company: string; role: string; site: string; url: string | null; salary: string | null;
+  description: string | null;
   contract_type: ContractType | null; work_model: WorkModel | null;
   status: JobStatus; status_note: string | null; applied_at: string | null; status_updated_at: string; created_at: string;
 }
 // Rascunho devolvido pela Edge Function `chat` quando o usuário pede para adicionar uma vaga.
 export interface JobDraft {
   company: string; role: string; site: string; url: string | null; salary: string | null;
+  description: string | null;
   contract_type: ContractType | null; work_model: WorkModel | null;
   status: JobStatus; status_note: string | null;
 }

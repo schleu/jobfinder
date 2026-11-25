@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { describeFunctionError } from '../lib/edgeFunction';
 import { ensureJobSite } from '../lib/jobSites';
 import { useJobs, type NewJob } from '../hooks/useJobs';
+import { normalizeSalary } from '../lib/salary';
 import JobDraftCard from './JobDraftCard';
 import {
   STATUSES,
@@ -61,7 +62,8 @@ function toDraft(value: unknown): JobDraft | null {
     role: text(v.role),
     site: text(v.site),
     url: safeHttpUrl(v.url),
-    salary: typeof v.salary === 'string' ? v.salary : null,
+    salary: normalizeSalary(typeof v.salary === 'string' ? v.salary : null),
+    description: typeof v.description === 'string' ? v.description : null,
     contract_type: contract,
     work_model: workModel,
     status,

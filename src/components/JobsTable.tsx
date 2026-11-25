@@ -5,6 +5,7 @@ import {
   type ContractType, type HistoryRow, type Job, type JobStatus, type WorkModel,
 } from '../types';
 import { useJobs } from '../hooks/useJobs';
+import { salaryLabel } from '../lib/salary';
 import JobForm from './JobForm';
 
 const fmt = (d: string) => new Date(d).toLocaleDateString('pt-BR');
@@ -66,7 +67,7 @@ export default function JobsTable() {
                     <td>{j.company}</td>
                     <td><button className="link" onClick={() => setOpen(open === j.id ? null : j.id)}>{j.role}</button></td>
                     <td>{j.url ? <a href={j.url} target="_blank" rel="noreferrer">{j.site}</a> : j.site}</td>
-                    <td>{j.salary ?? '-'}</td>
+                    <td>{salaryLabel(j.salary)}</td>
                     <td>
                       <select
                         className="mini"
@@ -94,7 +95,19 @@ export default function JobsTable() {
                     </td>
                     <td className="muted">{fmt(j.status_updated_at)}</td>
                   </tr>
-                  {open === j.id && <tr><td colSpan={8}><History jobId={j.id} /></td></tr>}
+                  {open === j.id && (
+                    <tr>
+                      <td colSpan={8}>
+                        {j.description && (
+                          <div className="job-description">
+                            <h4>Descrição da vaga</h4>
+                            <p>{j.description}</p>
+                          </div>
+                        )}
+                        <History jobId={j.id} />
+                      </td>
+                    </tr>
+                  )}
                 </Fragment>
               ))}
             </tbody>

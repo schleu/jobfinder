@@ -51,6 +51,7 @@ interface JobDraft {
   site: string;
   url: string | null;
   salary: string | null;
+  description: string | null;
   contract_type: ContractType | null;
   work_model: WorkModel | null;
   status: JobStatus;
@@ -113,16 +114,18 @@ const EXTRACTION_SYSTEM = [
   'Você extrai dados de vagas de emprego para um painel de candidaturas.',
   'Responda SOMENTE com um objeto JSON válido, sem markdown, sem comentários e sem texto fora do JSON.',
   'Formato exato:',
-  '{"company":"","role":"","site":"","url":"","salary":"","contract_type":null,"work_model":null,"status":"nova","status_note":null}',
+  '{"company":"","role":"","site":"","url":"","salary":"","description":null,"contract_type":null,"work_model":null,"status":"nova","status_note":null}',
   '',
   'Regras:',
   '- company: empresa contratante. role: título/cargo da vaga.',
   '- site: plataforma onde a vaga está publicada (LinkedIn, Gupy, Indeed...). Se não souber, deduza do domínio do link.',
-  '- url: link completo da vaga. salary: texto como aparece; null se não houver.',
+  '- url: link completo da vaga.',
+  '- salary: valor como aparece (ex.: "R$ 8.000"). Se a vaga não informar, use "Não informado"; se disser que será combinado na entrevista, use "Na entrevista".',
+  '- description: descrição da vaga em texto simples, sem HTML (responsabilidades, requisitos, benefícios). null se não houver.',
   '- contract_type: "clt", "pj" ou null. work_model: "remoto", "hibrido", "presencial" ou null.',
   '- status: "nova" por padrão; "cadastrado" se o usuário já se candidatou; "em_processo" se já está em processo.',
   '- status_note: observação curta e útil (requisitos, tecnologias), ou null.',
-  '- Nunca invente empresa, cargo ou salário. Deixe "" quando o dado não estiver disponível.',
+  '- Nunca invente empresa, cargo, salário ou descrição. Deixe "" (ou null em description) quando o dado não estiver disponível.',
   '- Use os dados raspados da página e o link quando existirem; se o link estiver bloqueado, use o que o usuário escreveu.',
 ].join('\n');
 
@@ -230,6 +233,23 @@ function asNullable(value: unknown): string | null {
   return asText(value) || null;
 }
 
+function asDescription(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const text = value.trim();
+  return text ? text.slice(0, 8000) : null;
+}
+
+// Salário: valor informado, "Não informado" (vira null) ou "Na entrevista".
+function normalizeSalary(value: unknown): string | null {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text) return null;
+  if (/^n[ãa]o informad[oa]$/i.test(text)) return null;
+  if (!/\d/.test(text) && /(a combinar|combinar|na entrevista|entrevista|negoci[áa]vel|a definir|compat[íi]vel com o mercado|negotiable|to be discussed)/i.test(text)) {
+    return 'Na entrevista';
+  }
+  return text.slice(0, 300);
+}
+
 function normalizeContract(value: unknown): ContractType | null {
   const text = asText(value).toLowerCase();
   if (!text) return null;
@@ -272,7 +292,8 @@ function normalizeJobDraft(data: JsonObject | null, rawUrl: string | null, scrap
     role: asText(data?.role) || scraped?.role || '',
     site: asText(data?.site) || scraped?.site || siteFromUrl(url) || '',
     url,
-    salary: asNullable(data?.salary) ?? scraped?.salary ?? null,
+    salary: normalizeSalary(asNullable(data?.salary) ?? scraped?.salary ?? null),
+    description: asDescription(data?.description) ?? scraped?.description ?? null,
     contract_type: normalizeContract(data?.contract_type),
     work_model: normalizeWorkModel(data?.work_model) ?? scraped?.work_model ?? null,
     status: normalizeStatus(data?.status),

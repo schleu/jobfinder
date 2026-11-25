@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { CONTRACT_TYPES, STATUSES, WORK_MODELS, type ContractType, type JobStatus, type WorkModel } from '../types';
 import type { NewJob } from '../hooks/useJobs';
+import { SALARY_SUGGESTIONS, normalizeSalary } from '../lib/salary';
 
 const EMPTY = {
-  company: '', role: '', site: '', url: '', salary: '', note: '',
+  company: '', role: '', site: '', url: '', salary: '', description: '', note: '',
 };
 
 export default function JobForm({ onAdd, onClose }: { onAdd: (job: NewJob) => Promise<string | null>; onClose: () => void }) {
@@ -15,7 +16,7 @@ export default function JobForm({ onAdd, onClose }: { onAdd: (job: NewJob) => Pr
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFields((f) => ({ ...f, [k]: e.target.value }));
     setDone(false);
   };
@@ -29,7 +30,8 @@ export default function JobForm({ onAdd, onClose }: { onAdd: (job: NewJob) => Pr
       role: fields.role.trim(),
       site: fields.site.trim(),
       url: fields.url.trim() || null,
-      salary: fields.salary.trim() || null,
+      salary: normalizeSalary(fields.salary),
+      description: fields.description.trim() || null,
       contract_type: contract || null,
       work_model: workModel || null,
       status,
@@ -63,7 +65,10 @@ export default function JobForm({ onAdd, onClose }: { onAdd: (job: NewJob) => Pr
           <input type="url" value={fields.url} onChange={set('url')} placeholder="https://..." />
         </label>
         <label>Salário
-          <input value={fields.salary} onChange={set('salary')} placeholder="Ex: R$ 8.000" />
+          <input list="salary-suggestions" value={fields.salary} onChange={set('salary')} placeholder="Ex: R$ 8.000" />
+          <datalist id="salary-suggestions">
+            {SALARY_SUGGESTIONS.map((s) => <option key={s} value={s} />)}
+          </datalist>
         </label>
         <label>Contratação
           <select value={contract} onChange={(e) => { setContract(e.target.value as ContractType | ''); setDone(false); }}>
@@ -83,6 +88,9 @@ export default function JobForm({ onAdd, onClose }: { onAdd: (job: NewJob) => Pr
           </select>
         </label>
       </div>
+      <label>Descrição da vaga
+        <textarea rows={4} value={fields.description} onChange={set('description')} placeholder="Opcional — responsabilidades, requisitos, benefícios…" />
+      </label>
       <label>Observação
         <input value={fields.note} onChange={set('note')} placeholder="Opcional — fica no histórico da vaga" />
       </label>

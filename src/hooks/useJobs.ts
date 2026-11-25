@@ -4,6 +4,7 @@ import type { ContractType, Job, JobStatus, WorkModel } from '../types';
 
 export interface NewJob {
   company: string; role: string; site: string; url: string | null; salary: string | null;
+  description: string | null;
   contract_type: ContractType | null; work_model: WorkModel | null;
   status: JobStatus; status_note: string | null;
 }
