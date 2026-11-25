@@ -6,6 +6,7 @@ Backlog de ideias e melhorias do Job Finder. Marque com `[x]` quando concluir e 
 - [ ] **Tabela principal** — (_detalhar escopo_)
 - [x] **Adicionar vaga via chat**
   - [x] A partir do link da vaga
+  - [x] Scraping do link (JSON-LD, dados embutidos e APIs de LinkedIn/Greenhouse/Lever)
   - [x] Adicionar automaticamente o site à lista de sites de busca
 
 ## IA / LLMs

@@ -58,6 +58,7 @@ supabase/
   migrations/             scripts SQL idempotentes, aplicados em ordem
   functions/
     chat/index.ts         chatbot com as vagas do usuário
+    chat/scrape.ts        raspagem dos links de vaga (APIs, JSON-LD, dados embutidos)
     analyze-resume/index.ts  extração do PDF + análise estruturada
 ```
 

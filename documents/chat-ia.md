@@ -10,6 +10,7 @@ O chat responde perguntas sobre as vagas do usuário. A chamada ao provedor de I
 | `src/components/JobDraftCard.tsx` | Cartão editável de confirmação da vaga extraída pela IA |
 | `src/lib/jobSites.ts` | Adiciona o site da vaga em Configurações quando ele ainda não existe |
 | `supabase/functions/chat/index.ts` | Autenticação, contexto das vagas, extração de vaga, chamada à IA e fallback de modelos |
+| `supabase/functions/chat/scrape.ts` | Raspagem do link: APIs do site, JSON-LD, dados embutidos de SPAs e meta tags |
 | `src/lib/edgeFunction.ts` | Traduz erros de `functions.invoke` |
 
 ## Interface
@@ -29,8 +30,8 @@ Quando a última mensagem do usuário pede para cadastrar uma vaga (ou contém u
 
 1. O front envia a conversa normalmente.
 2. A função detecta a intenção (`adicionar`, `cadastrar`, `salvar`… + `vaga`, ou um link praticamente sozinho / acompanhado de “vaga”).
-3. Se houver link, a função tenta abri-lo (timeout de 15 s, até 4 redirecionamentos, hosts internos bloqueados) e aproveita o **JSON-LD `JobPosting`** da página quando existir.
-4. A IA recebe a mensagem, o link e o texto extraído da página e responde só com um JSON de vaga.
+3. Se houver link, a função faz o **scraping** da página (`scrape.ts`): tenta primeiro a API pública do site (LinkedIn guest, Greenhouse, Lever), depois o **JSON-LD `JobPosting`**, os dados embutidos de SPAs (`__NEXT_DATA__`, `__INITIAL_STATE__`, `__APOLLO_STATE__` etc.), as meta tags (`og:*`) e, por fim, o texto visível. Timeout de 15 s, até 4 redirecionamentos e hosts internos bloqueados.
+4. A IA recebe a mensagem, o link e todo o material raspado (dados estruturados + texto) e responde só com um JSON de vaga.
 5. O front valida o JSON e mostra o **cartão de confirmação** (`JobDraftCard`), com todos os campos editáveis.
 6. Ao confirmar, a vaga é inserida em `jobs` e o site é adicionado em `job_sites` se ainda não existir (com URL do link ou de uma lista de sites conhecidos).
 
@@ -62,7 +63,8 @@ Se a IA falhar mas o link tiver dados estruturados, a função ainda devolve um 
 
 ### Limitações
 
-- Sites com login ou anti-bot (LinkedIn, alguns portais) podem bloquear a leitura da página; nesse caso a IA usa o link e o texto da mensagem, e o cartão serve para completar o que faltar.
+- Sites com login ou anti-bot (alguns portais) podem bloquear a leitura da página. Quando o site é reconhecido, a função tenta a API pública (LinkedIn guest, Greenhouse, Lever) antes de baixar o HTML; se nada funcionar, a IA usa o link e o texto da mensagem, e o cartão serve para completar o que faltar.
+- O scraping não executa JavaScript: páginas que só montam a vaga no navegador são lidas pelos dados embutidos (quando existem) ou pelo texto/meta tags disponíveis no HTML.
 - A IA pode errar ou inventar um campo; por isso o cartão é sempre uma etapa de revisão e nada é salvo sem confirmação.
 - O link é aberto pela Edge Function, não pelo navegador; hosts internos (`localhost`, faixas privadas) são bloqueados.
 

@@ -41,7 +41,7 @@ supabase secrets set AI_PROVIDER=openrouter AI_API_KEY=sk-or-... AI_MODEL=google
 - O chat tem um **seletor de modelo** no topo. A lista vem da função e pode ser trocada pelo secret `AI_MODELS` (IDs separados por vírgula); sem ele vale a lista embutida de modelos `:free`, sempre incluindo o `AI_MODEL` padrão.
 - Se o modelo escolhido devolver **429/5xx**, a função tenta automaticamente os próximos modelos da lista (até 3) e o rodapé do chat mostra qual respondeu.
 - A função autentica pelo JWT do usuário e lê só as vagas dele (RLS), então o bot responde sobre o painel de verdade.
-- **Adicionar vaga pelo chat**: cole o link ou peça para cadastrar descrevendo os dados. A IA extrai a vaga (inclusive do JSON-LD da página), o app mostra um cartão editável e, ao confirmar, salva em `jobs` e adiciona o site em `job_sites` se ainda não existir.
+- **Adicionar vaga pelo chat**: cole o link ou peça para cadastrar descrevendo os dados. A função faz o scraping do link (API do site quando existe, JSON-LD, dados embutidos de SPAs e meta tags), a IA extrai a vaga, o app mostra um cartão editável e, ao confirmar, salva em `jobs` e adiciona o site em `job_sites` se ainda não existir.
 - Para testar local: `supabase functions serve chat --env-file .env` com as variáveis `AI_*` no `.env`.
 
 ## Análise do currículo com IA

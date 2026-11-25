@@ -2,6 +2,7 @@
 // Também extrai os dados de uma vaga (texto ou link) para o usuário confirmar no app.
 // A chave da IA fica só aqui (secrets), nunca no bundle do front.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { scrapeJobLink, siteFromUrl, type ScrapedJob } from './scrape.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -56,19 +57,6 @@ interface JobDraft {
   status_note: string | null;
 }
 
-interface PageData {
-  text: string;
-  jsonLd: JsonLdJob | null;
-  error?: string;
-}
-
-interface JsonLdJob {
-  company?: string;
-  role?: string;
-  salary?: string | null;
-  work_model?: WorkModel | null;
-}
-
 interface CompletionResult {
   text: string | null;
   model: string;
@@ -120,31 +108,6 @@ const DEFAULT_MODELS = [
 // Troca de modelo automática em caso de 429/5xx (free tier costuma limitar por provedor).
 const MAX_ATTEMPTS = 3;
 const ATTEMPT_TIMEOUT_MS = 40_000;
-const PAGE_TIMEOUT_MS = 15_000;
-
-const SITE_NAMES: Record<string, string> = {
-  'linkedin.com': 'LinkedIn',
-  'gupy.io': 'Gupy',
-  'indeed.com': 'Indeed',
-  'glassdoor.com': 'Glassdoor',
-  'catho.com.br': 'Catho',
-  'vagas.com.br': 'Vagas.com',
-  'infojobs.com.br': 'InfoJobs',
-  'trampos.co': 'Trampos',
-  'programathor.com.br': 'Programathor',
-  'remoteok.com': 'Remote OK',
-  'wellfound.com': 'Wellfound',
-  'workana.com': 'Workana',
-  '99jobs.com': '99jobs',
-  'solides.com.br': 'Sólides',
-  'kenoby.com': 'Kenoby',
-  'greenhouse.io': 'Greenhouse',
-  'lever.co': 'Lever',
-  'workday.com': 'Workday',
-  'smartrecruiters.com': 'SmartRecruiters',
-  'ashbyhq.com': 'Ashby',
-  'breezy.hr': 'Breezy',
-};
 
 const EXTRACTION_SYSTEM = [
   'Você extrai dados de vagas de emprego para um painel de candidaturas.',
@@ -160,7 +123,7 @@ const EXTRACTION_SYSTEM = [
   '- status: "nova" por padrão; "cadastrado" se o usuário já se candidatou; "em_processo" se já está em processo.',
   '- status_note: observação curta e útil (requisitos, tecnologias), ou null.',
   '- Nunca invente empresa, cargo ou salário. Deixe "" quando o dado não estiver disponível.',
-  '- Use o texto da página e o link quando existirem; se o link estiver bloqueado, use o que o usuário escreveu.',
+  '- Use os dados raspados da página e o link quando existirem; se o link estiver bloqueado, use o que o usuário escreveu.',
 ].join('\n');
 
 function buildSystemPrompt(jobs: JobRow[], prefs: Preferences) {
@@ -259,189 +222,6 @@ function detectJobIntent(text: string): boolean {
   return imperative && !/^\s*(como|onde|quando|por que|porque|qual|quais|quanto|quantos|quantas)\b/i.test(t);
 }
 
-// Bloqueia endereços internos para a função não virar um proxy de SSRF.
-function safeHttpUrl(raw: string | null): URL | null {
-  if (!raw) return null;
-  try {
-    const url = new URL(raw);
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
-    const host = url.hostname.toLowerCase();
-    const privateHost = /^(localhost|127\.|0\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host)
-      || host === '[::1]'
-      || host === '[::]'
-      || host.endsWith('.localhost')
-      || host.endsWith('.local')
-      || host.endsWith('.internal');
-    return privateHost ? null : url;
-  } catch {
-    return null;
-  }
-}
-
-function htmlToText(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
-    .replace(/<svg[\s\S]*?<\/svg>/gi, ' ')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|li|h[1-6]|tr|section|article)>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/[ \t\f\v]+/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
-
-function findJobPosting(value: unknown, depth = 0): JsonObject | null {
-  if (depth > 5) return null;
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const found = findJobPosting(item, depth + 1);
-      if (found) return found;
-    }
-    return null;
-  }
-  if (!value || typeof value !== 'object') return null;
-
-  const obj = value as JsonObject;
-  const type = obj['@type'];
-  const types = Array.isArray(type) ? type.map(String) : [String(type ?? '')];
-  if (types.some((t) => t.toLowerCase() === 'jobposting')) return obj;
-
-  for (const [key, child] of Object.entries(obj)) {
-    if (key === '@context') continue;
-    if (child && typeof child === 'object') {
-      const found = findJobPosting(child, depth + 1);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-function textValue(value: unknown): string {
-  if (typeof value === 'string') return value.trim();
-  if (Array.isArray(value)) return value.length ? textValue(value[0]) : '';
-  if (value && typeof value === 'object') {
-    const obj = value as JsonObject;
-    if (typeof obj.name === 'string') return obj.name.trim();
-    if (typeof obj['@value'] === 'string') return obj['@value'].trim();
-  }
-  return '';
-}
-
-function jsonLdSalary(value: unknown): string | null {
-  if (!value || typeof value !== 'object') return typeof value === 'string' ? value : null;
-  const obj = value as JsonObject;
-  const currency = textValue(obj.currency);
-  const label = currency === 'BRL' ? 'R$' : currency === 'USD' ? 'US$' : currency;
-  const rawValue = obj.value;
-  if (rawValue && typeof rawValue === 'object') {
-    const v = rawValue as JsonObject;
-    const unit = textValue(v.unitText).toLowerCase();
-    const suffix = unit.includes('hour') ? '/hora' : unit.includes('month') ? '/mês' : unit.includes('year') ? '/ano' : '';
-    const min = v.minValue ?? v.value;
-    const max = v.maxValue;
-    if (min !== undefined && min !== null && min !== '') {
-      const range = max !== undefined && max !== null && max !== '' ? `${min} – ${max}` : String(min);
-      return `${label ? `${label} ` : ''}${range}${suffix}`.trim();
-    }
-  }
-  const flat = typeof rawValue === 'string' || typeof rawValue === 'number' ? String(rawValue) : '';
-  return flat ? `${label ? `${label} ` : ''}${flat}`.trim() : null;
-}
-
-function parseJsonLdJob(html: string): JsonLdJob | null {
-  const blocks = [...html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
-  for (const block of blocks) {
-    try {
-      const parsed = JSON.parse(block[1].trim());
-      const posting = findJobPosting(parsed);
-      if (!posting) continue;
-
-      const company = textValue(posting.hiringOrganization);
-      const role = textValue(posting.title) || textValue(posting.name);
-      const salary = jsonLdSalary(posting.baseSalary ?? posting.estimatedSalary);
-      const remote = textValue(posting.jobLocationType).toUpperCase().includes('TELECOMMUTE');
-
-      if (company || role || salary) {
-        return {
-          company: company || undefined,
-          role: role || undefined,
-          salary,
-          work_model: remote ? 'remoto' : undefined,
-        };
-      }
-    } catch {
-      // Bloco JSON-LD inválido: tenta o próximo.
-    }
-  }
-  return null;
-}
-
-async function fetchPage(url: URL): Promise<PageData> {
-  let current = url;
-
-  for (let hop = 0; hop < 4; hop++) {
-    try {
-      const res = await fetch(current.toString(), {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; jobFinder/1.0; +https://github.com/)',
-          Accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
-        },
-        signal: AbortSignal.timeout(PAGE_TIMEOUT_MS),
-        redirect: 'manual',
-      });
-
-      if (res.status >= 300 && res.status < 400) {
-        const location = res.headers.get('location');
-        const next = location ? safeHttpUrl(new URL(location, current).toString()) : null;
-        if (!next) return { text: '', jsonLd: null, error: 'O link redirecionou para um endereço não permitido.' };
-        current = next;
-        continue;
-      }
-
-      if (!res.ok) return { text: '', jsonLd: null, error: `O site respondeu ${res.status}.` };
-
-      const type = res.headers.get('content-type') ?? '';
-      if (!/text\/html|application\/xhtml|text\/plain/i.test(type)) {
-        return { text: '', jsonLd: null, error: 'O link não retornou uma página de texto.' };
-      }
-
-      const size = Number(res.headers.get('content-length') ?? '0');
-      if (size > 2_000_000) {
-        return { text: '', jsonLd: null, error: 'A página é muito grande para analisar.' };
-      }
-
-      const html = (await res.text()).slice(0, 300_000);
-      return { text: htmlToText(html).slice(0, 12_000), jsonLd: parseJsonLdJob(html) };
-    } catch (e) {
-      return { text: '', jsonLd: null, error: `Não foi possível abrir o link (${(e as Error).message}).` };
-    }
-  }
-
-  return { text: '', jsonLd: null, error: 'O link redirecionou vezes demais.' };
-}
-
-function siteFromUrl(raw: string | null): string | null {
-  if (!raw) return null;
-  try {
-    const host = new URL(raw).hostname.toLowerCase().replace(/^www\./, '');
-    for (const [domain, name] of Object.entries(SITE_NAMES)) {
-      if (host === domain || host.endsWith(`.${domain}`)) return name;
-    }
-    return host;
-  } catch {
-    return null;
-  }
-}
-
 function asText(value: unknown): string {
   return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, 300) : '';
 }
@@ -462,7 +242,7 @@ function normalizeWorkModel(value: unknown): WorkModel | null {
   const text = asText(value).toLowerCase();
   if (!text) return null;
   if (/remot|home.?office|telecommut/.test(text)) return 'remoto';
-  if (/h[ií]brid/.test(text)) return 'hibrido';
+  if (/h[iíy]brid/.test(text)) return 'hibrido';
   if (/presencial|on.?site/.test(text)) return 'presencial';
   return null;
 }
@@ -485,21 +265,22 @@ function parseJsonObject(raw: string): JsonObject | null {
   }
 }
 
-function normalizeJobDraft(data: JsonObject | null, url: string | null, jsonLd: JsonLdJob | null): JobDraft {
+function normalizeJobDraft(data: JsonObject | null, rawUrl: string | null, scraped: ScrapedJob | null): JobDraft {
+  const url = asNullable(data?.url) || scraped?.url || rawUrl;
   return {
-    company: asText(data?.company) || jsonLd?.company || '',
-    role: asText(data?.role) || jsonLd?.role || '',
-    site: asText(data?.site) || siteFromUrl(url) || '',
-    url: asNullable(data?.url) || url,
-    salary: asNullable(data?.salary) ?? jsonLd?.salary ?? null,
+    company: asText(data?.company) || scraped?.company || '',
+    role: asText(data?.role) || scraped?.role || '',
+    site: asText(data?.site) || scraped?.site || siteFromUrl(url) || '',
+    url,
+    salary: asNullable(data?.salary) ?? scraped?.salary ?? null,
     contract_type: normalizeContract(data?.contract_type),
-    work_model: normalizeWorkModel(data?.work_model) ?? jsonLd?.work_model ?? null,
+    work_model: normalizeWorkModel(data?.work_model) ?? scraped?.work_model ?? null,
     status: normalizeStatus(data?.status),
-    status_note: asNullable(data?.status_note),
+    status_note: asNullable(data?.status_note) ?? scraped?.status_note ?? null,
   };
 }
 
-function buildExtractionPrompt(userText: string, url: string | null, page: PageData | null): string {
+function buildExtractionPrompt(userText: string, rawUrl: string | null, scraped: ScrapedJob | null): string {
   const sections = [
     'Extraia os dados da vaga abaixo.',
     '',
@@ -507,19 +288,17 @@ function buildExtractionPrompt(userText: string, url: string | null, page: PageD
     `"""${userText.slice(0, 2000)}"""`,
   ];
 
-  if (url) sections.push('', `Link da vaga: ${url}`);
-  if (page?.jsonLd) {
-    sections.push('', `Dados estruturados encontrados na página (JSON-LD):\n${JSON.stringify(page.jsonLd).slice(0, 4000)}`);
-  }
-  if (page?.text) sections.push('', `Texto extraído da página:\n${page.text}`);
-  if (page?.error) sections.push('', `Aviso: ${page.error}`);
+  if (rawUrl) sections.push('', `Link da vaga: ${rawUrl}`);
+  if (scraped?.hints) sections.push('', `Dados raspados da página:\n${scraped.hints}`);
+  if (scraped?.text) sections.push('', `Texto extraído da página:\n${scraped.text}`);
+  if (scraped?.error) sections.push('', `Aviso: ${scraped.error}`);
 
   return sections.join('\n');
 }
 
-function draftReply(job: JobDraft, page: PageData | null, aiFailed: boolean): string {
+function draftReply(job: JobDraft, scraped: ScrapedJob | null, aiFailed: boolean): string {
   if (aiFailed) {
-    const link = page?.error ? ' nem abrir o link' : '';
+    const link = scraped?.error ? ' nem abrir o link' : '';
     return `Não consegui falar com a IA agora${link}. Preencha os dados abaixo para adicionar a vaga.`;
   }
 
@@ -529,7 +308,7 @@ function draftReply(job: JobDraft, page: PageData | null, aiFailed: boolean): st
     job.site ? '' : 'site',
   ].filter(Boolean);
 
-  const linkNote = page?.error ? ' Não consegui abrir o link, então complete o que faltar.' : '';
+  const linkNote = scraped?.error ? ' Não consegui abrir o link, então complete o que faltar.' : '';
 
   if (missing.length) {
     return `Encontrei parte dos dados. Complete ${missing.join(', ')} abaixo e confirme para adicionar a vaga.${linkNote}`;
@@ -688,11 +467,11 @@ Deno.serve(async (req) => {
     headers['X-Title'] = 'jobFinder';
   }
 
-  // Pedido de cadastro: extrai a vaga e devolve um rascunho para o front confirmar.
+  // Pedido de cadastro: raspa o link (quando houver), extrai a vaga com a IA
+  // e devolve um rascunho para o front confirmar.
   if (detectJobIntent(lastUserMessage)) {
     const rawUrl = firstUrl(lastUserMessage);
-    const url = safeHttpUrl(rawUrl);
-    const page = url ? await fetchPage(url) : null;
+    const scraped = rawUrl ? await scrapeJobLink(rawUrl) : null;
 
     const result = await requestCompletion({
       baseUrl,
@@ -701,14 +480,14 @@ Deno.serve(async (req) => {
       requested,
       messages: [
         { role: 'system', content: EXTRACTION_SYSTEM },
-        { role: 'user', content: buildExtractionPrompt(lastUserMessage, rawUrl, page) },
+        { role: 'user', content: buildExtractionPrompt(lastUserMessage, rawUrl, scraped) },
       ],
       temperature: 0.1,
       maxTokens: 800,
     });
 
     const parsed = result.text ? parseJsonObject(result.text) : null;
-    const job = normalizeJobDraft(parsed, rawUrl, page?.jsonLd ?? null);
+    const job = normalizeJobDraft(parsed, rawUrl, scraped);
 
     // Se nem a IA nem o link renderam nada aproveitável, devolve o erro original.
     if (!result.text && !job.company && !job.role && !job.site && !job.url) {
@@ -716,7 +495,7 @@ Deno.serve(async (req) => {
     }
 
     return json({
-      reply: draftReply(job, page, !result.text),
+      reply: draftReply(job, scraped, !result.text),
       job,
       model: result.model,
       requested_model: requested,
