@@ -31,11 +31,11 @@ Quando a última mensagem do usuário pede para cadastrar uma vaga (ou contém u
 1. O front envia a conversa normalmente.
 2. A função detecta a intenção (`adicionar`, `cadastrar`, `salvar`… + `vaga`, ou um link praticamente sozinho / acompanhado de “vaga”).
 3. Se houver link, a função faz o **scraping** da página (`scrape.ts`): tenta primeiro a API pública do site (LinkedIn guest, Greenhouse, Lever), depois o **JSON-LD `JobPosting`**, os dados embutidos de SPAs (`__NEXT_DATA__`, `__INITIAL_STATE__`, `__APOLLO_STATE__` etc.), as meta tags (`og:*`) e, por fim, o texto visível. Timeout de 15 s, até 4 redirecionamentos e hosts internos bloqueados.
-4. A IA recebe a mensagem, o link e todo o material raspado (dados estruturados + texto) e responde só com um JSON de vaga.
+4. A IA recebe a mensagem, o link e todo o material raspado (dados estruturados + texto) e responde só com um JSON de vaga. O salário é normalizado para o valor, `Não informado` ou `Na entrevista`, e a descrição vai em texto simples (sem HTML).
 5. O front valida o JSON e mostra o **cartão de confirmação** (`JobDraftCard`), com todos os campos editáveis.
 6. Ao confirmar, a vaga é inserida em `jobs` e o site é adicionado em `job_sites` se ainda não existir (com URL do link ou de uma lista de sites conhecidos).
 
-O cartão nunca salva sozinho: o usuário revisa empresa, função, site, link, salário, contratação, modelo, status e observação antes de confirmar. Duplicatas (mesmo link ou mesma empresa + função + site) são recusadas com “Essa vaga já está cadastrada.”.
+O cartão nunca salva sozinho: o usuário revisa empresa, função, site, link, salário, descrição, contratação, modelo, status e observação antes de confirmar. Duplicatas (mesmo link ou mesma empresa + função + site) são recusadas com “Essa vaga já está cadastrada.”.
 
 ### Resposta com rascunho
 
@@ -48,6 +48,7 @@ O cartão nunca salva sozinho: o usuário revisa empresa, função, site, link, 
     "site": "LinkedIn",
     "url": "https://www.linkedin.com/jobs/view/123",
     "salary": "R$ 8.000",
+    "description": "Responsabilidades, requisitos e benefícios da vaga…",
     "contract_type": "clt",
     "work_model": "remoto",
     "status": "nova",

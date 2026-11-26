@@ -54,6 +54,7 @@ src/
     edgeFunction.ts       tradução de erros de Edge Functions
     authError.ts          tradução de erros de autenticação
     jobSites.ts           cadastro automático do site da vaga
+    salary.ts             normalização do salário (valor, Não informado, Na entrevista)
 supabase/
   migrations/             scripts SQL idempotentes, aplicados em ordem
   functions/

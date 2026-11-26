@@ -17,9 +17,10 @@ Os scripts ficam em `supabase/migrations`, aplicados em ordem pelo nome:
 - `20261123130000_resume_analysis_text.sql` — texto extraído do PDF junto da análise.
 - `20261124120000_job_contract_work_model.sql` — tipo de contratação e modelo de trabalho (vagas e preferências).
 - `20261124130000_resume_analysis_history.sql` — histórico de análises do currículo (várias por usuário).
+- `20261125120000_job_description.sql` — descrição da vaga em `jobs`.
 
 ## Vagas
-Cada vaga guarda o **tipo de contratação** (`CLT` ou `PJ`) e o **modelo de trabalho** (`Remoto`, `Híbrido` ou `Presencial`). Os campos são escolhidos no formulário e podem ser ajustados direto na tabela, sem abrir a vaga. Campos não informados aparecem como `—`.
+Cada vaga guarda o **tipo de contratação** (`CLT` ou `PJ`), o **modelo de trabalho** (`Remoto`, `Híbrido` ou `Presencial`) e a **descrição da vaga**. O salário aceita um valor livre, `Não informado` ou `Na entrevista`. Os campos são escolhidos no formulário e podem ser ajustados direto na tabela, sem abrir a vaga. Campos não informados aparecem como `—`.
 
 Em **Configurações → Preferências de vaga** você define o que procura; essas preferências entram no contexto do chat e da análise do currículo.
 

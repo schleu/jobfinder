@@ -11,6 +11,7 @@ export interface ScrapedJob {
   company: string;
   role: string;
   salary: string | null;
+  description: string;
   work_model: WorkModel | null;
   status_note: string | null;
   text: string;
@@ -50,6 +51,7 @@ const MAX_REDIRECTS = 4;
 const MAX_HTML = 600_000;
 const MAX_TEXT = 12_000;
 const MAX_HINTS = 8_000;
+const MAX_DESCRIPTION = 8_000;
 
 const BROWSER_HEADERS: Record<string, string> = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -537,7 +539,7 @@ function mapEmbeddedJob(data: JsonObject): ExtractedData {
     salary,
     work_model: workModel,
     status_note: noteParts.length ? noteParts.join(' · ').slice(0, 300) : null,
-    description: description ? truncate(stripHtml(description), 2000) : undefined,
+    description: description ? truncate(stripHtml(description), MAX_DESCRIPTION) : undefined,
   };
 }
 
@@ -629,6 +631,10 @@ async function parseHtmlPage(html: string, finalUrl: URL, sourceSite?: string): 
   const company = jsonLd?.company || embeddedData?.company || titleCompany(title) || fromUrl.company || '';
   const role = jsonLd?.role || embeddedData?.role || titleRole(title) || fromUrl.role || '';
   const salary = jsonLd?.salary ?? embeddedData?.salary ?? null;
+  const description = truncate(
+    jsonLd?.description || embeddedData?.description || stripHtml(meta.description) || '',
+    MAX_DESCRIPTION,
+  );
   const workModel = jsonLd?.work_model ?? embeddedData?.work_model ?? null;
   const statusNote = embeddedData?.status_note || jsonLd?.status_note || truncate(meta.description, 300) || null;
   const site = sourceSite || cleanSiteName(meta.siteName) || siteFromUrl(finalUrl.toString());
@@ -651,6 +657,7 @@ async function parseHtmlPage(html: string, finalUrl: URL, sourceSite?: string): 
     company,
     role,
     salary,
+    description,
     work_model: workModel,
     status_note: statusNote,
     text: await htmlToText(html),
@@ -673,6 +680,7 @@ function parseJsonPage(body: string, finalUrl: URL): ScrapedJob {
         company: '',
         role: '',
         salary: null,
+        description: '',
         work_model: null,
         status_note: null,
         text: truncate(body, MAX_TEXT),
@@ -687,6 +695,7 @@ function parseJsonPage(body: string, finalUrl: URL): ScrapedJob {
       company: data.company || '',
       role: data.role || '',
       salary: data.salary ?? null,
+      description: data.description || '',
       work_model: data.work_model ?? null,
       status_note: data.status_note ?? null,
       text: truncate(stripHtml(body), MAX_TEXT),
@@ -729,6 +738,7 @@ function emptyScraped(url: string, error?: string): ScrapedJob {
     company: '',
     role: '',
     salary: null,
+    description: '',
     work_model: null,
     status_note: null,
     text: '',
@@ -804,6 +814,7 @@ async function scrapeLinkedIn(url: URL): Promise<ScrapedJob | null> {
     company: company || base.company,
     role: role || base.role,
     salary: base.salary ?? (salary || null),
+    description: base.description || truncate(description, MAX_DESCRIPTION),
     work_model: base.work_model ?? workModelFromValue(location),
     status_note: base.status_note || (noteParts.length ? noteParts.join(' · ').slice(0, 300) : null),
     hints: [
@@ -868,6 +879,7 @@ async function scrapeGreenhouse(url: URL): Promise<ScrapedJob | null> {
     company,
     role,
     salary,
+    description: truncate(stripHtml(content), MAX_DESCRIPTION),
     work_model: workModel,
     status_note: noteParts.length ? noteParts.join(' · ').slice(0, 300) : null,
     text: truncate(stripHtml(content), MAX_TEXT),
@@ -914,6 +926,7 @@ async function scrapeLever(url: URL): Promise<ScrapedJob | null> {
     company: companySlug,
     role,
     salary,
+    description: truncate(stripHtml(description), MAX_DESCRIPTION),
     work_model: workModel,
     status_note: noteParts.length ? noteParts.join(' · ').slice(0, 300) : null,
     text: truncate(stripHtml(description), MAX_TEXT),
@@ -940,6 +953,7 @@ function mergeScraped(primary: ScrapedJob, fallback: ScrapedJob): ScrapedJob {
     company: primary.company || fallback.company,
     role: primary.role || fallback.role,
     salary: primary.salary ?? fallback.salary,
+    description: primary.description || fallback.description,
     work_model: primary.work_model ?? fallback.work_model,
     status_note: primary.status_note || fallback.status_note,
     text: [primary.text, fallback.text].filter(Boolean).join('\n\n').slice(0, MAX_TEXT),

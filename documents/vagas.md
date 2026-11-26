@@ -15,7 +15,8 @@ A aba **Vagas** é a tela principal: lista as candidaturas, permite filtrar por 
 
 Colunas: **Empresa**, **Função**, **Site**, **Salário**, **Contratação**, **Modelo**, **Status** e **Atualizada**.
 
-- **Função** é um botão: clicar abre/fecha o histórico da vaga na linha de baixo.
+- **Função** é um botão: clicar abre/fecha a descrição da vaga e o histórico na linha de baixo.
+- **Salário** mostra o valor informado, `Na entrevista` ou `Não informado`.
 - **Contratação** e **Modelo** são selects inline; a alteração é salva na hora (`updateJob`) sem abrir formulário.
 - **Status** também é um select inline (`setStatus`) e dispara o histórico automático.
 - **Site** vira link quando a vaga tem `url`.
@@ -27,7 +28,7 @@ Chips no topo: **Todas** e um por status, com a contagem de cada um. O filtro é
 
 ### Histórico
 
-Ao abrir uma vaga, `History` busca `job_status_history` por `job_id`, mais recente primeiro, e mostra data, status, origem (`Claude Code` ou `manual`) e observação. O histórico é gravado por trigger no banco — o front nunca insere ali.
+Ao abrir uma vaga, aparece a **descrição** (quando cadastrada) e o `History` busca `job_status_history` por `job_id`, mais recente primeiro, e mostra data, status, origem (`Claude Code` ou `manual`) e observação. O histórico é gravado por trigger no banco — o front nunca insere ali.
 
 ## Formulário de nova vaga
 
@@ -37,7 +38,8 @@ Ao abrir uma vaga, `History` busca `job_status_history` por `job_id`, mais recen
 | Função | sim | cargo procurado/anunciado |
 | Site | sim | ex.: LinkedIn, Gupy |
 | Link da vaga | não | vira link na tabela |
-| Salário | não | texto livre (`R$ 8.000`, `a combinar`) |
+| Salário | não | valor livre (`R$ 8.000`), `Não informado` ou `Na entrevista` |
+| Descrição da vaga | não | texto longo (responsabilidades, requisitos, benefícios) |
 | Contratação | não | `CLT` ou `PJ` |
 | Modelo de trabalho | não | `Remoto`, `Híbrido` ou `Presencial` |
 | Status | sim | começa em `Nova` |

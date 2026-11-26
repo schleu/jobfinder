@@ -13,6 +13,7 @@ Aplicadas em ordem pelo nome:
 | `20261123130000_resume_analysis_text.sql` | Coluna `text` (PDF extraído) em `resume_analyses` |
 | `20261124120000_job_contract_work_model.sql` | `contract_type` e `work_model` em `jobs` e `user_settings` |
 | `20261124130000_resume_analysis_history.sql` | Histórico de análises: PK `id` em `resume_analyses` + índice por usuário |
+| `20261125120000_job_description.sql` | Coluna `description` (descrição da vaga) em `jobs` |
 
 Como aplicar:
 
@@ -58,6 +59,7 @@ Como aplicar:
 | `user_id` | uuid | default `auth.uid()`, cascade |
 | `company`, `role`, `site` | text | obrigatórios |
 | `url`, `salary`, `status_note` | text | opcionais |
+| `description` | text | descrição da vaga (texto simples, sem HTML) |
 | `status` | `job_status` | default `nova` |
 | `external_id` | text | id da vaga no site (deduplicação) |
 | `applied_at` | timestamptz | preenchido pelas skills |
